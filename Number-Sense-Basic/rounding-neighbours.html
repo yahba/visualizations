@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- Tells the browser the text uses the standard character set (so × − ✓ etc. display correctly). -->
+  <meta charset="utf-8">
+
+  <!-- Makes the page fit phone screens properly instead of showing a tiny zoomed-out desktop page. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+
+<title>Rounding Neighbours</title>
+
+<!--
+  ROUNDING NEIGHBOURS
+  A step-by-step page for teaching rounding with the "neighbours" idea:
+
+    Step 1  Split the number:   1,347 = 13 hundreds + 47 leftover
+    Step 2  Find the neighbours: 1,300 below, 1,400 above
+    Step 3  Pin the number on the line, show both distances (47 and 53)
+            and the halfway flag (1,350)
+    Step 4  Round to the closer neighbour (and handle the exact-halfway case)
+    Step 5  Show the "look at the next digit" shortcut
+
+  The file has three parts, in this order:
+    1. <style>   how it looks
+    2. HTML      what is on the page
+    3. <script>  how it behaves
+-->
+
+<!-- Two fonts from Google: Baloo 2 for big numbers, Atkinson Hyperlegible
+     for text (designed to be easy to read, good on a projector).
+     The "fallback" fonts after them are used if the internet is slow. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Baloo+2:wght@600;800&display=swap">
+
+<style>
+/* Layout idea: one screen. Number on top, growing list of findings in the
+   middle, number line below, Back/Next at the bottom.
+
+   COLOUR TOKENS
+   Every colour is stored once here as a "variable" (the -- names).
+   The rest of the CSS only uses var(--name), so changing a colour here
+   changes it everywhere. Light colours first, dark colours further below. */
+:root{
+  --bg:#F3F6F5;        /* page background (slightly green-grey) */
+  --panel:#FFFFFF;     /* cards */
+  --ink:#16282B;       /* main text */
+  --muted:#5A6C6E;     /* secondary text */
+  --line:#C9D4D3;      /* borders, minor ticks */
+  --post:#0F6E78;      /* the "posts" (whole hundreds) and the posts part of the number */
+  --left:#C2410C;      /* the leftover part */
+  --flag:#7C3AED;      /* the halfway flag */
+  --good:#15803D;      /* the rounded answer */
+  --display:'Baloo 2', 'Trebuchet MS', system-ui, sans-serif;
+  --body:'Atkinson Hyperlegible', 'Segoe UI', system-ui, sans-serif;
+}
+/* Dark colours. Used when the computer is in dark mode,
+   unless the viewer has explicitly picked light. */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1A1C; --panel:#172629; --ink:#E6EFEE; --muted:#9AB0B0; --line:#33494C;
+    --post:#4FC3CF; --left:#FB923C; --flag:#B79CFF; --good:#4ADE80; color-scheme:dark;
+  }
+}
+/* Same dark colours when dark is picked explicitly. */
+:root[data-theme="dark"]{
+  --bg:#0F1A1C; --panel:#172629; --ink:#E6EFEE; --muted:#9AB0B0; --line:#33494C;
+  --post:#4FC3CF; --left:#FB923C; --flag:#B79CFF; --good:#4ADE80; color-scheme:dark;
+}
+
+body{background:var(--bg);color:var(--ink);font:400 1.1rem/1.5 var(--body)}
+
+/* The outer wrapper: max width, centred, 16px gap at the sides on phones. */
+.wrap{max-width:1100px;margin:0 auto;padding-inline:16px;padding-block:20px 32px;
+  display:flex;flex-direction:column;gap:18px}
+
+h1{font:800 clamp(1.6rem,3vw,2.2rem)/1.1 var(--display);margin:0}
+
+/* --- Top bar: number input and the scale picker --- */
+.bar{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+label{font-weight:700;color:var(--muted)}
+input{font:700 1.3rem var(--display);width:9ch;padding:.25rem .6rem;border:2px solid var(--line);
+  border-radius:10px;background:var(--panel);color:var(--ink)}
+button{font:700 1.05rem var(--body);padding:.45rem .9rem;border-radius:10px;border:2px solid var(--line);
+  background:var(--panel);color:var(--ink);cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--post);outline-offset:2px}
+button[aria-pressed="true"]{background:var(--post);border-color:var(--post);color:var(--bg)}
+button:disabled{opacity:.4;cursor:default}
+.seg{display:flex;gap:6px}
+.err{color:var(--left);font-weight:700;margin:0}
+
+/* --- The big number, split into "posts part" and "leftover" --- */
+.number{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:16px;
+  display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 24px}
+.split{display:flex;align-items:stretch;gap:0}
+.part{display:flex;flex-direction:column;align-items:center;padding:0 .4rem}
+.digits{font:800 clamp(3rem,9vw,5.5rem)/1 var(--display);letter-spacing:.06em;font-variant-numeric:tabular-nums}
+.part.posts .digits{color:var(--post)}
+.part.left .digits{color:var(--left)}
+.part small{font-weight:700;color:var(--muted);text-align:center;line-height:1.2}
+.divider{width:4px;background:var(--line);border-radius:2px;margin:6px .2rem}
+.eq{font:600 1.4rem var(--display);color:var(--muted)}
+
+/* --- Findings list: one row per step reached --- */
+.facts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.facts li{background:var(--panel);border-radius:12px;padding:10px 14px;border-left:6px solid var(--line)}
+.facts li.now{border-left-color:var(--post)}          /* the newest row */
+.facts b.p{color:var(--post)} .facts b.l{color:var(--left)}
+.facts b.f{color:var(--flag)} .facts b.g{color:var(--good)}
+.facts .note{display:block;color:var(--muted);font-size:1rem;margin-top:2px}
+
+/* --- Number line --- */
+.lineBox{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:8px;overflow-x:auto}
+svg{display:block;width:100%;min-width:560px;height:auto}
+/* SVG pieces take their colours from the same tokens */
+.axis{stroke:var(--ink);stroke-width:3}
+.minor{stroke:var(--line);stroke-width:2}
+.postTick{stroke:var(--muted);stroke-width:3}
+.postTick.hl{stroke:var(--post);stroke-width:6}
+.postLbl{fill:var(--muted);font:700 22px var(--body);text-anchor:middle}
+.postLbl.hl{fill:var(--post);font-size:26px}
+.pin{stroke:var(--left);stroke-width:4}
+.pinDot{fill:var(--left)}
+.pinLbl{fill:var(--left);font:800 28px var(--display);text-anchor:middle}
+.barL{stroke:var(--post);stroke-width:10;stroke-linecap:round}
+.barR{stroke:var(--left);stroke-width:10;stroke-linecap:round;opacity:.75}
+.barLbl{font:800 22px var(--display);text-anchor:middle}
+.barLbl.l{fill:var(--post)} .barLbl.r{fill:var(--left)}
+.flagLine{stroke:var(--flag);stroke-width:3;stroke-dasharray:7 6}
+.flagShape{fill:var(--flag)}
+.flagLbl{fill:var(--flag);font:700 20px var(--body)}
+.ring{fill:none;stroke:var(--good);stroke-width:5}
+.jump{fill:none;stroke:var(--good);stroke-width:4}
+.arrowHead{fill:var(--good)}
+.hintText{fill:var(--muted);font:700 22px var(--body);text-anchor:middle}
+
+/* --- Bottom: prediction prompt, Back / Next --- */
+.nav{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
+.ask{font-size:1.2rem;font-weight:700;margin:0;flex:1 1 300px;min-width:0}
+.ask span{color:var(--flag)}
+.navBtns{display:flex;gap:10px;align-items:center}
+.stepNo{color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums}
+#next{background:var(--post);border-color:var(--post);color:var(--bg)}
+</style>
+</html>
+<body>
+
+
+<!-- ===================== HTML: what is on the page ===================== -->
+<div class="wrap">
+
+  <div class="bar">
+    <h1>Rounding Neighbours</h1>
+    <div class="controls">
+      <!-- A form, so pressing Enter in the box also works -->
+      <form id="numForm" class="controls">
+        <label for="num">Number</label>
+        <input id="num" inputmode="numeric" value="1347" autocomplete="off">
+        <button type="submit">Show</button>
+      </form>
+      <div class="seg" role="group" aria-label="Round to the nearest">
+        <label>Nearest</label>
+        <!-- data-s holds the scale each button stands for -->
+        <button data-s="10"   aria-pressed="false">10</button>
+        <button data-s="100"  aria-pressed="true">100</button>
+        <button data-s="1000" aria-pressed="false">1,000</button>
+      </div>
+    </div>
+  </div>
+  <p class="err" id="err" hidden></p>
+
+  <!-- The number, split into two parts. Filled in by the script. -->
+  <div class="number" id="numberBox" aria-live="polite"></div>
+
+  <!-- Findings. One <li> is added per step. -->
+  <ol class="facts" id="facts"></ol>
+
+  <!-- The number line drawing. Filled in by the script. -->
+  <div class="lineBox"><svg id="line" viewBox="0 0 1000 240" role="img" aria-label="Number line"></svg></div>
+
+  <div class="nav">
+    <p class="ask" id="ask"></p>
+    <div class="navBtns">
+      <button id="back">◀ Back</button>
+      <span class="stepNo" id="stepNo"></span>
+      <button id="next">Next ▶</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===================== SCRIPT: how it behaves ===================== -->
+<script>
+// ----------------------------------------------------------------------
+// STATE
+// Everything the page needs to remember lives in one object, S.
+// (In Python this would be a dictionary.)
+// "const" means the name S always points to this same object,
+// but the values inside it can still change.
+// ----------------------------------------------------------------------
+const S = {
+  n: 1347,     // the number being rounded
+  s: 100,      // the scale: round to the nearest 10, 100 or 1000
+  step: 0      // which step we are on: 0 to LAST
+};
+const LAST = 4;                 // steps are numbered 0..4, so five steps
+const MAX = 9999999;            // biggest number we accept (99,99,999)
+
+// Words for each scale, so sentences read naturally.
+const ONE  = {10:'ten', 100:'hundred', 1000:'thousand'};
+const MANY = {10:'tens', 100:'hundreds', 1000:'thousands'};
+
+// A shortcut for document.getElementById, used a lot below.
+const $ = id => document.getElementById(id);
+
+// Write a number with Indian commas: 1347 -> "1,347", 134700 -> "1,34,700".
+const fmt = x => x.toLocaleString('en-IN');
+
+
+// ----------------------------------------------------------------------
+// THE MATHS
+// All the numbers the page shows are worked out here, in one place.
+// Everything else only displays them.
+// ----------------------------------------------------------------------
+function work(n, s) {
+  // How many complete units of the scale are in n.
+  // Math.floor drops anything after the decimal point.
+  // 1347 / 100 = 13.47  ->  13 hundreds.
+  const units = Math.floor(n / s);
+
+  // The leftover: what remains after taking out those complete units.
+  // "%" gives the remainder of a division (same as Python).
+  // 1347 % 100 = 47. It is ALWAYS less than s.
+  const leftover = n % s;
+
+  const lower = units * s;          // clear the leftover:  13 hundreds = 1,300
+  const upper = lower + s;          // one more unit:       14 hundreds = 1,400
+  const mid   = lower + s / 2;      // halfway between:     1,350
+
+  const dLow  = n - lower;          // distance back to the lower neighbour
+  const dUp   = upper - n;          // distance on to the upper neighbour
+
+  const onPost  = leftover === 0;   // number sits exactly on a post (like 400)
+  const onFlag  = dLow === dUp;     // number sits exactly halfway (like 1,350)
+
+  // Rounding: go to whichever neighbour is closer.
+  // On exact halfway, the usual agreement is to round UP.
+  let rounded;
+  if (onPost) rounded = n;
+  else rounded = (dLow < dUp) ? lower : upper;
+
+  // The "next digit": the digit one place to the right of the scale.
+  // For 1347 rounded to hundreds, that is the tens digit, 4.
+  const nextDigit = Math.floor(leftover / (s / 10));
+
+  // Does adding one unit cause a "cascade" (like 19 hundreds -> 20 hundreds)?
+  // That happens when the digit at the scale's place is 9.
+  const cascade = units % 10 === 9;
+
+  // Return everything as one object. "{ units, leftover, ... }" is short
+  // for "{ units: units, leftover: leftover, ... }".
+  return { units, leftover, lower, upper, mid, dLow, dUp, onPost, onFlag, rounded, nextDigit, cascade };
+}
+
+
+// ----------------------------------------------------------------------
+// DRAW THE BIG SPLIT NUMBER
+// e.g.   13 | 47
+//    hundreds | leftover
+// ----------------------------------------------------------------------
+function drawNumber(w) {
+  const k = String(S.s).length - 1;   // digits in the leftover: 1, 2 or 3
+
+  // Write n as digits, padded with zeros on the LEFT so the posts part
+  // has at least one digit. 47 at hundreds becomes "047" -> "0 | 47".
+  // (Zeros on the left change nothing, which is a lesson in itself.)
+  const digits = String(S.n).padStart(k + 1, '0');
+  const postsPart = digits.slice(0, digits.length - k);  // everything but the last k digits
+  const leftPart  = digits.slice(digits.length - k);     // the last k digits
+
+  // Build the HTML as text and put it inside the box.
+  // The backtick `...` strings fill in ${...} values, like Python f-strings.
+  $('numberBox').innerHTML = `
+    <div class="split">
+      <div class="part posts">
+        <span class="digits">${postsPart}</span>
+        <small>${fmt(w.units)} ${w.units === 1 ? ONE[S.s] : MANY[S.s]}</small>
+      </div>
+      <div class="divider"></div>
+      <div class="part left">
+        <span class="digits">${leftPart}</span>
+        <small>leftover<br>(less than ${fmt(S.s)})</small>
+      </div>
+    </div>
+    <div class="eq">= ${fmt(S.n)}</div>`;
+}
+
+
+// ----------------------------------------------------------------------
+// THE FINDINGS LIST
+// One sentence per step. Only steps up to S.step are shown.
+// Each entry is a function, so it can use the numbers from work().
+// ----------------------------------------------------------------------
+const FACTS = [
+  // Step 0: split
+  w => `<b class="p">${fmt(S.n)}</b> = <b class="p">${fmt(w.units)} ${MANY[S.s]}</b> + <b class="l">${fmt(w.leftover)}</b> leftover.
+        <span class="note">The leftover is always less than one ${ONE[S.s]}. At most it is ${fmt(S.s - 1)}.</span>`,
+
+  // Step 1: neighbours
+  w => {
+    if (w.onPost) return `Lower neighbour: <b class="p">${fmt(w.lower)}</b>. The leftover is 0, so ${fmt(S.n)} is already standing on a post.
+        <span class="note">The next post up is ${fmt(w.upper)}, but ${fmt(S.n)} is not in a gap at all.</span>`;
+    let t = `Lower neighbour: clear the leftover → <b class="p">${fmt(w.lower)}</b> (${fmt(w.units)} ${MANY[S.s]}).
+             Upper neighbour: one more ${ONE[S.s]} → <b class="p">${fmt(w.upper)}</b> (${fmt(w.units + 1)} ${MANY[S.s]}).`;
+    if (w.cascade) t += `<span class="note">Watch the cascade: ${fmt(w.units)} + 1 = ${fmt(w.units + 1)} ${MANY[S.s]}. On the exchange machine, ten ${MANY[S.s]} bundle into the next place.</span>`;
+    return t;
+  },
+
+  // Step 2: pin, distances and the halfway flag, all together
+  w => {
+    // The flag sentence is the same in both cases, so build it once.
+    const flag = `Halfway flag at <b class="f">${fmt(w.mid)}</b>: left of it is closer to ${fmt(w.lower)}, right of it is closer to ${fmt(w.upper)}.`;
+    if (w.onPost) return `Distance to ${fmt(w.lower)}: <b class="p">0</b>. The pin is on the post.
+        <span class="note">${flag}</span>`;
+    return `Distance back to ${fmt(w.lower)}: <b class="p">${fmt(w.dLow)}</b>. Distance on to ${fmt(w.upper)}: <b class="l">${fmt(w.dUp)}</b>.
+        <span class="note">${fmt(w.dLow)} + ${fmt(w.dUp)} = ${fmt(S.s)}, one full gap. ${flag}</span>`;
+  },
+
+  // Step 4: the rounded answer
+  w => {
+    if (w.onPost) return `${fmt(S.n)} is already a whole number of ${MANY[S.s]}, so it rounds to itself: <b class="g">${fmt(w.rounded)}</b>.`;
+    if (w.onFlag) return `Exactly on the flag! Both neighbours are ${fmt(w.dLow)} away, so neither is closer.
+        By agreement we round <b>up</b>: <b class="g">${fmt(w.rounded)}</b>.
+        <span class="note">This is a rule people agreed on, not something the number line decides.</span>`;
+    const closer = w.rounded === w.lower ? 'lower' : 'upper';
+    return `${fmt(S.n)} is ${closer === 'lower' ? 'left' : 'right'} of the flag, so it is closer to the ${closer} neighbour.
+            Rounded to the nearest ${ONE[S.s]}: <b class="g">${fmt(w.rounded)}</b>.`;
+  },
+
+  // Step 5: the shortcut
+  w => `Shortcut: look at the digit just after the ${MANY[S.s]} place. Here it is <b class="l">${w.nextDigit}</b>.
+        <span class="note">0 to 4: you have not reached the flag, stay at the lower neighbour. 5 to 9: you are at the flag or past it, go up.
+        The flag (${fmt(w.mid)}) always has a 5 in that place, which is why one digit is enough.</span>`
+];
+
+// The prediction prompt shown next to the Next button for each step.
+// It asks about what the NEXT press will reveal.
+const ASK = [
+  w => `<span>Predict:</span> which two ${MANY[S.s]} is ${fmt(S.n)} between?`,
+  w => `<span>Predict:</span> where on the line does ${fmt(S.n)} sit, and where is the middle of the gap?`,
+  w => `<span>Predict:</span> which neighbour is closer?`,
+  w => `<span>Think:</span> could you have found the answer from just one digit?`,
+  w => ``   // last step: nothing more to reveal, so no prompt
+];
+
+function drawFacts(w) {
+  let html = '';
+  for (let i = 0; i <= S.step; i++) {
+    // The newest row gets the class "now" so it is highlighted.
+    html += `<li class="${i === S.step ? 'now' : ''}">${FACTS[i](w)}</li>`;
+  }
+  $('facts').innerHTML = html;
+  $('ask').innerHTML = ASK[S.step](w);
+  $('stepNo').textContent = `Step ${S.step + 1} of ${LAST + 1}`;
+  $('back').disabled = S.step === 0;
+  $('next').disabled = S.step === LAST;
+}
+
+
+// ----------------------------------------------------------------------
+// DRAW THE NUMBER LINE (an SVG drawing)
+// The drawing is 1000 units wide and 240 tall (see viewBox in the HTML).
+// We build the SVG as text, piece by piece, and add more pieces the
+// further along the steps we are.
+// ----------------------------------------------------------------------
+function drawLine(w) {
+  // Which part of the number line to show: one post before the lower
+  // neighbour and one post after the upper one. Never below 0.
+  const lo = Math.max(0, w.lower - S.s);
+  const hi = w.upper + S.s;
+
+  // x(v) turns a number into a horizontal position on the drawing.
+  // lo maps to 60, hi maps to 940. Everything in between is in proportion.
+  const x = v => 60 + (v - lo) / (hi - lo) * 880;
+
+  const Y = 130;   // height of the main line
+  let g = '';      // the SVG text we are building
+
+  // Step 0: no line yet, just a hint.
+  if (S.step < 1) {
+    $('line').innerHTML = `<text class="hintText" x="500" y="125">The number line appears when we look for the neighbours.</text>`;
+    return;
+  }
+
+  // Small ticks: one every tenth of a gap (one level down).
+  for (let v = lo; v <= hi; v += S.s / 10) {
+    g += `<line class="minor" x1="${x(v)}" y1="${Y - 10}" x2="${x(v)}" y2="${Y + 10}"/>`;
+  }
+  // The main line itself.
+  g += `<line class="axis" x1="${x(lo)}" y1="${Y}" x2="${x(hi)}" y2="${Y}"/>`;
+
+  // Posts: one every full unit of the scale, with labels.
+  // The lower and upper neighbours get the class "hl" (highlighted).
+  for (let v = lo; v <= hi; v += S.s) {
+    const hl = (v === w.lower || v === w.upper) ? ' hl' : '';
+    g += `<line class="postTick${hl}" x1="${x(v)}" y1="${Y - 24}" x2="${x(v)}" y2="${Y + 24}"/>`;
+    g += `<text class="postLbl${hl}" x="${x(v)}" y="${Y + 52}">${fmt(v)}</text>`;
+  }
+
+  // Step 2 and later: the pin and the two distance bars.
+  if (S.step >= 2) {
+    const px = x(S.n);
+    // Distance bars run along the bottom.
+    if (w.dLow > 0) {
+      g += `<line class="barL" x1="${x(w.lower)}" y1="210" x2="${px}" y2="210"/>`;
+      g += `<text class="barLbl l" x="${(x(w.lower) + px) / 2}" y="236">${fmt(w.dLow)}</text>`;
+    }
+    if (!w.onPost) {
+      g += `<line class="barR" x1="${px}" y1="210" x2="${x(w.upper)}" y2="210"/>`;
+      g += `<text class="barLbl r" x="${(px + x(w.upper)) / 2}" y="236">${fmt(w.dUp)}</text>`;
+    }
+    // The pin: a line with a dot, and the number above it.
+    g += `<line class="pin" x1="${px}" y1="${Y - 62}" x2="${px}" y2="${Y}"/>`;
+    g += `<circle class="pinDot" cx="${px}" cy="${Y}" r="9"/>`;
+    g += `<text class="pinLbl" x="${px}" y="${Y - 72}">${fmt(S.n)}</text>`;
+  }
+
+  // Step 2 and later: the halfway flag (dashed line + little triangle),
+  // drawn in the same step as the pin and distances.
+  if (S.step >= 2) {
+    const fx = x(w.mid);
+    g += `<line class="flagLine" x1="${fx}" y1="${Y - 46}" x2="${fx}" y2="${Y + 24}"/>`;
+    g += `<path class="flagShape" d="M${fx} ${Y - 46} l26 9 l-26 9 z"/>`;
+    // The word "halfway" sits just right of the little flag.
+    g += `<text class="flagLbl" x="${fx + 32}" y="${Y - 30}" text-anchor="start">halfway</text>`;
+  }
+
+  // Step 3 and later: ring the rounded post, draw an arrow to it.
+  if (S.step >= 3) {
+    const rx = x(w.rounded);
+    g += `<circle class="ring" cx="${rx}" cy="${Y}" r="20"/>`;
+    if (!w.onPost) {
+      // A curved arrow from the pin top to the rounded post.
+      // "Q" draws a curve that bends towards the middle point given.
+      const px = x(S.n);
+      g += `<path class="jump" d="M${px} ${Y - 92} Q${(px + rx) / 2} ${Y - 125} ${rx} ${Y - 30}"/>`;
+      g += `<circle class="arrowHead" cx="${rx}" cy="${Y - 30}" r="7"/>`;
+    }
+  }
+
+  $('line').innerHTML = g;
+}
+
+
+// ----------------------------------------------------------------------
+// RENDER: redraw everything from the current state.
+// Every button below changes S, then calls render().
+// ----------------------------------------------------------------------
+function render() {
+  const w = work(S.n, S.s);
+  drawNumber(w);
+  drawFacts(w);
+  drawLine(w);
+  // Light up the scale button that matches S.s.
+  document.querySelectorAll('.seg button').forEach(b => {
+    b.setAttribute('aria-pressed', Number(b.dataset.s) === S.s ? 'true' : 'false');
+  });
+}
+
+
+// ----------------------------------------------------------------------
+// BUTTONS AND INPUT
+// ----------------------------------------------------------------------
+
+// Read the typed number, check it, and start again from step 1.
+$('numForm').addEventListener('submit', e => {
+  e.preventDefault();                         // stop the page from reloading
+  const raw = $('num').value.replace(/[, ]/g, '');   // remove commas and spaces
+  const n = Number(raw);
+  // Accept only whole numbers from 0 to MAX.
+  if (raw === '' || !Number.isInteger(n) || n < 0 || n > MAX) {
+    $('err').textContent = `Type a whole number from 0 to ${fmt(MAX)}.`;
+    $('err').hidden = false;
+    return;
+  }
+  $('err').hidden = true;
+  S.n = n; S.step = 0; render();
+});
+
+// Scale buttons: 10 / 100 / 1,000. Changing scale starts again at step 1.
+document.querySelectorAll('.seg button').forEach(b => {
+  b.onclick = () => { S.s = Number(b.dataset.s); S.step = 0; render(); };
+});
+
+// Back and Next.
+$('back').onclick = () => { if (S.step > 0)    { S.step--; render(); } };
+$('next').onclick = () => { if (S.step < LAST) { S.step++; render(); } };
+
+// Arrow keys also move between steps (handy with a presenter clicker),
+// but not while typing in the number box.
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowRight') $('next').click();
+  if (e.key === 'ArrowLeft')  $('back').click();
+});
+
+// Draw the page for the first time.
+render();
+</script>
+</body>
+</html>

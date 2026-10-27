@@ -1,0 +1,549 @@
+<!doctype html>
+<!--
+  ======================================================================
+  CHITTI'S CALCULATOR
+  Math Explorer Club, The Break and Build Lab (BBL)
+  Idea from NCERT Ganita Prakash, Class 7: "Creative Chitti".
+
+  Chitti is a calculator with only these buttons:
+      +1   +10   +100   +1,000   +10,000   +1,00,000   +10,00,000
+  There are MANY ways to make the same number. To get 321 Chitti can press
+  +100 three times, +10 twice and +1 once (6 clicks), or +10 thirty-two
+  times and +1 once (33 clicks), and so on.
+
+  What it teaches: a number can be broken up in many ways, and ten of one
+  place is worth one of the next. The fewest clicks is the usual way we
+  write the number.
+
+  How this file is organised (read it top to bottom):
+    1. <head>    : page settings, title, fonts
+    2. <style>   : CSS, which controls how everything LOOKS
+    3. <body>    : HTML, which says WHAT is on the page
+    4. <script>  : JavaScript, which controls how it BEHAVES
+  ======================================================================
+-->
+<html lang="en">
+
+<head>
+  <!-- Tells the browser the text uses the standard character set (so × − ✓ etc. display correctly). -->
+  <meta charset="utf-8">
+
+  <!-- Makes the page fit phone screens properly instead of showing a tiny zoomed-out desktop page. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+  <!-- The name shown on the browser tab. -->
+  <title>Chitti's Calculator</title>
+
+  <!-- Two free fonts from Google Fonts (the same ones as the other tools).
+       If there is no internet, the page still works and uses the computer's normal fonts. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Baloo+2:wght@500;700;800&display=swap">
+
+  <style>
+    /* ==================================================================
+       PART 2: CSS (how things look)
+       ================================================================== */
+
+    /* ------------------------------------------------------------------
+       COLOUR AND FONT SETTINGS  <- the easiest place to change the look
+       Each line gives a NAME to a colour (names start with --).
+       The rest of the CSS uses the names, e.g.  color: var(--warn);
+       ------------------------------------------------------------------ */
+    :root {
+      --bg:        #F3F5F9;  /* page background */
+      --surface:   #FFFFFF;  /* white boxes: tiles, count boxes, small buttons */
+      --mat:       #E6ECF4;  /* background of each column */
+      --ink:       #16202D;  /* main text colour */
+      --muted:     #566275;  /* softer grey text */
+      --line:      #C6D0DE;  /* borders */
+      --accent:    #2B4A9E;  /* blue: the target number, keyboard focus outline */
+      --key:       #F2A41A;  /* Chitti's + buttons (marigold) */
+      --key-ring:  #B4700A;  /* the darker edge under a + button */
+      --on-key:    #3A2400;  /* text on a + button */
+      --ready:     #1D8A5A;  /* green: the Check button, a correct answer */
+      --on-ready:  #FFFFFF;  /* text on the green Check button */
+      --warn:      #C23B0E;  /* red: a wrong answer */
+
+      /* Font lists: the browser uses the first one it has. */
+      --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+      --body:    "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    /* DARK MODE. Darker colours with the SAME names, so nothing else in the CSS changes.
+       The block appears twice: the first follows the device setting,
+       the second applies when a dark theme is chosen explicitly. */
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg:#10141B; --surface:#1A2029; --mat:#232B37; --ink:#EEF2F7; --muted:#9EA9BA; --line:#3A4658;
+        --accent:#93ABF2;
+        --key:#F5B33C; --key-ring:#A0650A; --on-key:#2A1A00;
+        --ready:#3CC086; --on-ready:#0C1A13; --warn:#FF8A5C;
+        color-scheme: dark;  /* also darkens scrollbars and text boxes */
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg:#10141B; --surface:#1A2029; --mat:#232B37; --ink:#EEF2F7; --muted:#9EA9BA; --line:#3A4658;
+      --accent:#93ABF2;
+      --key:#F5B33C; --key-ring:#A0650A; --on-key:#2A1A00;
+      --ready:#3CC086; --on-ready:#0C1A13; --warn:#FF8A5C;
+      color-scheme: dark;
+    }
+
+    /* ------------------------------------------------------------------
+       BASIC PAGE SETUP
+       ------------------------------------------------------------------ */
+
+    /* Make width/height include padding and borders (much easier to reason about). */
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--body);
+      font-size: 16px;
+    }
+
+    /* The outer wrapper: centres everything and limits the width on very wide screens. */
+    .wrap {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding-inline: clamp(16px, 3vw, 40px);
+      padding-block: 20px 48px;
+    }
+    /* Stack the sections of the page top to bottom with equal space between them. */
+    .wrap, main { display: flex; flex-direction: column; gap: 18px; }
+
+    /* ------------------------------------------------------------------
+       TOP BAR: title on the left, controls on the right
+       ------------------------------------------------------------------ */
+    .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; }
+    h1 { font-family: var(--display); font-weight: 800; font-size: clamp(1.5rem, 2.4vw, 2.1rem); line-height: 1.05; margin: 0; }
+    .tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+    .btn { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; color: var(--ink);
+           font: 700 .95rem var(--body); padding: .55rem .85rem; cursor: pointer; }
+    .set { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-weight: 700; font-size: .9rem; }
+    .set input { width: 8.5rem; font: 700 1rem var(--body); padding: .5rem .7rem; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); }
+
+    /* A clear outline when using the keyboard (Tab key) to move between buttons. */
+    button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+    /* ------------------------------------------------------------------
+       THE THREE BIG NUMBERS: target, what Chitti shows, clicks
+       auto-fit lets the tiles sit side by side on a wide screen and
+       stack on a narrow one, without any extra rules.
+       ------------------------------------------------------------------ */
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 12px; }
+    .tile  { background: var(--surface); border: 1.5px solid var(--line); border-radius: 16px; padding: 10px 22px 12px; min-width: 0; }
+    .tile h2 { margin: 0; font: 700 .85rem var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+    /* font-variant-numeric: tabular-nums makes every digit the same width, so numbers don't jiggle when they change. */
+    .tile .num { font-family: var(--display); font-weight: 800; font-size: clamp(2.6rem, 5.4vw, 4.6rem); line-height: 1.05; font-variant-numeric: tabular-nums; }
+    .tile.target .num { color: var(--accent); }
+
+    /* ------------------------------------------------------------------
+       THE MAT: one column for each of Chitti's buttons
+       ------------------------------------------------------------------ */
+
+    /* If the columns are wider than the screen (e.g. on a phone), scroll sideways inside this box. */
+    .matscroll { overflow-x: auto; padding-bottom: 6px; }
+
+    /* CSS Grid: "repeat(var(--n), ...)" makes N equal columns. The script sets --n. */
+    .mat { display: grid; grid-template-columns: repeat(var(--n), minmax(8.2rem, 1fr)); column-gap: 10px; min-width: min-content; }
+
+    .col { background: var(--mat); border-radius: 14px; padding: 12px 10px; display: flex; flex-direction: column; gap: 10px; text-align: center; }
+    .name { font-family: var(--display); font-weight: 700; font-size: clamp(1rem, 1.4vw, 1.3rem); line-height: 1.1; }
+
+    /* One of Chitti's buttons. The thick bottom edge makes it look like a real key;
+       :active (while it is being pressed) pushes it down by removing that edge. */
+    .press { font: 800 clamp(1.05rem, 1.55vw, 1.45rem)/1.1 var(--display); padding: .8rem .2rem .65rem; border-radius: 12px; cursor: pointer;
+             background: var(--key); color: var(--on-key); border: 0; border-bottom: 5px solid var(--key-ring); white-space: nowrap; }
+    .press:active { transform: translateY(3px); border-bottom-width: 2px; margin-bottom: 3px; }
+    .press:disabled { opacity: .4; cursor: default; }
+
+    /* The box showing how many times the button was pressed. It can also be typed into. */
+    .count { width: 100%; text-align: center; font: 800 clamp(2rem, 3.4vw, 3rem)/1.1 var(--display); font-variant-numeric: tabular-nums;
+             padding: .15rem 0 0; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); }
+
+    /* Two small lines under the box: "32 × 10" and "= 320". min-height keeps the columns the same height. */
+    .times, .worth { color: var(--muted); font-weight: 700; font-size: .95rem; font-variant-numeric: tabular-nums; min-height: 1.2em; }
+    .worth { color: var(--ink); }
+
+    /* The − button: take one press back. */
+    .undo { font: 800 1.4rem/1 var(--display); padding: .3rem 0 .15rem; border-radius: 10px;
+            border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+    .undo:disabled { opacity: .35; cursor: default; }
+
+    /* ------------------------------------------------------------------
+       CHECK BUTTON AND ITS ANSWER
+       ------------------------------------------------------------------ */
+    .checkrow { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+    .check { font: 800 clamp(1.3rem, 2vw, 1.7rem)/1 var(--display); padding: .8rem 2.2rem .65rem; border-radius: 12px; border: 0;
+             background: var(--ready); color: var(--on-ready); cursor: pointer; }
+    .result { font: 700 clamp(1.3rem, 2.2vw, 1.9rem) var(--display); margin: 0; }
+    .result.ok { color: var(--ready); }
+    .result.no { color: var(--warn); }
+
+    /* ------------------------------------------------------------------
+       THE LIST OF WAYS FOUND
+       ------------------------------------------------------------------ */
+    .ways h2 { font: 700 clamp(1.1rem, 1.6vw, 1.4rem) var(--display); margin: 0 0 6px; }
+    .ways ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    .ways li { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: .5rem .9rem;
+               display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 24px;
+               font-weight: 700; font-size: clamp(1rem, 1.5vw, 1.3rem); font-variant-numeric: tabular-nums; }
+    .ways .clicks { color: var(--muted); white-space: nowrap; }
+
+    /* ------------------------------------------------------------------
+       FOOTNOTE: where the idea comes from
+       ------------------------------------------------------------------ */
+    .source { color: var(--muted); font-size: .9rem; border-top: 1.5px solid var(--line); padding-top: 10px; margin-top: 12px; }
+    .source p { margin: 0; }
+  </style>
+</head>
+<body>
+  <!-- ====================================================================
+       PART 3: HTML (what is on the page)
+       ==================================================================== -->
+
+  <div class="wrap">
+
+    <!-- TOP BAR -->
+    <header class="bar">
+      <h1>Chitti's Calculator</h1>
+      <div class="tools">
+
+        <!-- Type a new target number. The script makes both the Set button and the Enter key work. -->
+        <label class="set">Target
+          <input id="setNum" inputmode="numeric" placeholder="e.g. 5,072">
+          <button class="btn" id="setBtn" type="button">Set</button>
+        </label>
+
+        <!-- Hide what Chitti shows, so the class can predict it first. The script changes the wording. -->
+        <button class="btn" id="toggleTotal"></button>
+
+        <button class="btn" id="clear">Clear</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- THE THREE BIG NUMBERS. aria-live="polite" makes screen readers announce changes. -->
+      <section class="tiles" aria-live="polite">
+        <div class="tile target"><h2>Target</h2><div class="num" id="target"></div></div>
+        <div class="tile"><h2>Chitti shows</h2><div class="num" id="total"></div></div>
+        <div class="tile"><h2>Clicks</h2><div class="num" id="clicks"></div></div>
+      </section>
+
+      <!-- THE MAT. Empty here: the script's buildMat() function makes the columns inside it. -->
+      <section class="matscroll" aria-label="Chitti's buttons"><div class="mat" id="mat"></div></section>
+
+      <!-- CHECK: does what Chitti shows match the target? -->
+      <section class="checkrow">
+        <button class="check" id="checkBtn">Check</button>
+        <p class="result" id="result" role="status"></p>
+      </section>
+
+      <!-- THE WAYS FOUND SO FAR. "hidden" hides it until the first correct answer. -->
+      <section class="ways" id="ways" hidden>
+        <h2 id="waysTitle"></h2>
+        <ol id="waysList"></ol>
+      </section>
+    </main>
+
+    <!-- FOOTNOTE: the textbook the idea comes from. <cite> marks the title of a book. -->
+    <footer class="source">
+      <p>Based on &ldquo;Creative Chitti&rdquo; in <cite>Ganita Prakash</cite>, Grade 7, Chapter 1 (NCERT).</p>
+    </footer>
+  </div>
+
+
+  <script>
+  // ======================================================================
+  // PART 4: JAVASCRIPT (how it behaves)
+  //
+  // The whole program follows one simple pattern:
+  //
+  //     a click  ->  change the STATE  ->  call render()  ->  screen updated
+  //
+  // STATE is one object (called S below) that holds everything that can
+  // change. render() always rewrites the numbers on screen from S, so the
+  // screen and the state can never disagree.
+  // ======================================================================
+
+
+  // ----------------------------------------------------------------------
+  // SETTINGS  <- the easiest place to change how the calculator behaves
+  // ----------------------------------------------------------------------
+  const SETTINGS = {
+    // The target number when the page opens.
+    startTarget: 321,
+
+    // Show what Chitti's display reads while buttons are pressed?
+    // false = keep it hidden ("?") so the class has to work it out, then press Check.
+    // The "Hide total" button on the page switches this while teaching.
+    showTotal: true,
+
+    // The most times one button can be pressed.
+    maxPresses: 999,
+
+    // The biggest target allowed: 99,99,999 uses all seven buttons.
+    maxTarget: 9999999,
+  };
+
+
+  // ----------------------------------------------------------------------
+  // FIXED FACTS
+  // ----------------------------------------------------------------------
+
+  // One name per button, ONES FIRST. Place p is worth 10 to the power p,
+  // so NAMES[2] is 'Hundred' and its button is +100.
+  // To give Chitti fewer buttons, shorten this list.
+  const NAMES = ['One', 'Ten', 'Hundred', 'Thousand', 'Ten Thousand', 'Lakh', 'Ten Lakh'];
+  const PLACES = NAMES.length;
+
+
+  // ----------------------------------------------------------------------
+  // STATE: everything that can change while the page is open
+  // ----------------------------------------------------------------------
+  const S = {
+    counts:    new Array(PLACES).fill(0),  // how many times each button was pressed, ones first
+    target:    SETTINGS.startTarget,       // the number to make
+    showTotal: SETTINGS.showTotal,         // is Chitti's display visible?
+    ways:      [],                         // the correct ways found so far for this target
+    result:    { kind: '', text: '' },     // the Check answer: kind is 'ok', 'no' or '' (nothing to show)
+  };
+
+
+  // ----------------------------------------------------------------------
+  // SMALL HELPER FUNCTIONS
+  // "x => something" is a short way to write a function (like Python's lambda).
+  // ----------------------------------------------------------------------
+
+  // $('total') finds the element with id="total". A short name because we use it often.
+  const $ = id => document.getElementById(id);
+
+  const mat = $('mat');
+
+  // Format a number with Indian commas: 205030 -> 2,05,030.
+  const fmt = n => n.toLocaleString('en-IN');
+
+  // What one press of button p adds: 1, 10, 100 ...
+  const placeValue = p => 10 ** p;
+
+  // What Chitti's display reads: add up (presses × value of the button).
+  // Python version:  sum(c * 10**p for p, c in enumerate(S.counts))
+  const total = () => S.counts.reduce((a, c, p) => a + c * placeValue(p), 0);
+
+  // All the presses added together.  Python version:  sum(S.counts)
+  const clicks = () => S.counts.reduce((a, c) => a + c, 0);
+
+  // "1 click" but "2 clicks".
+  const clickWord = n => `${fmt(n)} ${n === 1 ? 'click' : 'clicks'}`;
+
+  // Turn whatever was typed into a whole number: keep only the digits (so commas and
+  // spaces are fine). This /\D/g pattern is a "regular expression": \D means "not a digit".
+  // Nothing typed gives 0.
+  const readNumber = text => Number(text.replace(/\D/g, ''));
+
+
+  // ----------------------------------------------------------------------
+  // buildMat(): MAKE THE COLUMNS, ONCE, WHEN THE PAGE OPENS
+  // The columns never change shape, only the numbers inside them, so they
+  // are built one time here and render() just fills in the numbers.
+  // (Rebuilding them on every click would also wipe a box someone is typing in.)
+  //
+  // Text inside `backticks` can include values with ${...}
+  // e.g. `Place: ${name}` -- just like Python's f"Place: {name}".
+  // ----------------------------------------------------------------------
+  function buildMat() {
+    mat.style.setProperty('--n', PLACES);  // tell the CSS grid how many columns to make
+    let html = '';
+
+    // Biggest button on the LEFT, like the places of a written number.
+    // data-p stores the place, so the click handler knows which column was used.
+    for (let p = PLACES - 1; p >= 0; p--) {
+      const add = '+' + fmt(placeValue(p));
+      html += `
+        <div class="col" data-p="${p}">
+          <div class="name">${NAMES[p]}</div>
+          <button class="press" data-p="${p}">${add}</button>
+          <input class="count" data-p="${p}" inputmode="numeric" aria-label="Times ${add} was pressed">
+          <div class="times"></div>
+          <div class="worth"></div>
+          <button class="undo" data-p="${p}" aria-label="Take back one press of ${add}">−</button>
+        </div>`;
+    }
+    mat.innerHTML = html;
+  }
+
+
+  // ----------------------------------------------------------------------
+  // render(): UPDATE EVERY NUMBER ON THE PAGE FROM THE STATE
+  // This is the most important function. Every change calls it.
+  // ----------------------------------------------------------------------
+  function render() {
+    // 1. The three big numbers.
+    $('target').textContent = fmt(S.target);
+    $('total').textContent  = S.showTotal ? fmt(total()) : '?';
+    $('clicks').textContent = fmt(clicks());
+    $('toggleTotal').textContent = S.showTotal ? 'Hide total' : 'Show total';
+
+    // 2. Each column.
+    for (let p = 0; p < PLACES; p++) {
+      const c = S.counts[p];
+      const column = mat.querySelector(`.col[data-p="${p}"]`);
+      const box = column.querySelector('.count');
+
+      // Don't overwrite the box someone is typing in right now, or their cursor would jump.
+      // document.activeElement is the element that currently has the keyboard.
+      if (document.activeElement !== box) box.value = c;
+
+      // "32 × 10" and, if the total is showing, "= 320". Left blank while the count is 0.
+      column.querySelector('.times').textContent = c ? `${fmt(c)} × ${fmt(placeValue(p))}` : '';
+      column.querySelector('.worth').textContent = c && S.showTotal ? `= ${fmt(c * placeValue(p))}` : '';
+
+      // Grey out a button that can't do anything.
+      column.querySelector('.press').disabled = c >= SETTINGS.maxPresses;
+      column.querySelector('.undo').disabled  = c === 0;
+    }
+
+    // 3. The answer from the Check button. className sets the element's classes in one go.
+    $('result').textContent = S.result.text;
+    $('result').className = 'result ' + S.result.kind;
+
+    // 4. The list of ways found.
+    $('ways').hidden = S.ways.length === 0;
+    $('waysTitle').textContent = `Ways to make ${fmt(S.target)}: ${S.ways.length} found`;
+    // map() turns each way into a piece of HTML; join('') glues the pieces together.
+    // Python version:  ''.join(f"<li>...</li>" for w in S.ways)
+    $('waysList').innerHTML = S.ways
+      .map(w => `<li><span>${w.text}</span><span class="clicks">${clickWord(w.clicks)}</span></li>`)
+      .join('');
+  }
+
+
+  // ----------------------------------------------------------------------
+  // CHANGING THE COUNTS
+  // Every change to a count goes through setCount(), so the rules
+  // (never below 0, never above the limit) live in one place.
+  // ----------------------------------------------------------------------
+  function setCount(p, n) {
+    // Math.min / Math.max squeeze n into the range 0 .. maxPresses.
+    S.counts[p] = Math.max(0, Math.min(SETTINGS.maxPresses, n));
+    S.result = { kind: '', text: '' };   // the old Check answer no longer applies
+    render();
+  }
+
+  // ONE click listener on the whole mat checks which button was clicked.
+  mat.addEventListener('click', e => {
+    const b = e.target.closest('button');       // the button that was clicked (if any)
+    if (!b) return;
+    const p = Number(b.dataset.p);              // which place, read from data-p="..."
+
+    if (b.classList.contains('press')) setCount(p, S.counts[p] + 1);
+    else if (b.classList.contains('undo')) setCount(p, S.counts[p] - 1);
+  });
+
+  // Typing in a count box. The "input" event fires on every keystroke.
+  mat.addEventListener('input', e => {
+    if (!e.target.classList.contains('count')) return;
+    setCount(Number(e.target.dataset.p), readNumber(e.target.value));
+  });
+
+  // The "change" event fires when typing is finished (Enter, or clicking elsewhere).
+  // Now it is safe to tidy the box, e.g. turn "007" or an empty box into a proper number.
+  mat.addEventListener('change', e => {
+    if (!e.target.classList.contains('count')) return;
+    e.target.value = S.counts[Number(e.target.dataset.p)];
+  });
+
+
+  // ----------------------------------------------------------------------
+  // CHECK: does what Chitti shows match the target?
+  // ----------------------------------------------------------------------
+
+  // Describe the buttons pressed as text, biggest first: "2 × 100 + 12 × 10 + 1 × 1".
+  function describeWay() {
+    const parts = [];
+    for (let p = PLACES - 1; p >= 0; p--) {
+      if (S.counts[p]) parts.push(`${fmt(S.counts[p])} × ${fmt(placeValue(p))}`);
+    }
+    return parts.join(' + ');
+  }
+
+  function check() {
+    const t = total();
+
+    if (t !== S.target) {
+      // Say only which side it is on, not by how much, so there is still something to work out.
+      S.result = { kind: 'no', text: t > S.target ? '✗ Too much' : '✗ Too little' };
+      render();
+      return;
+    }
+
+    // Correct. A "key" such as "1,12,2,0,0,0,0" identifies this exact set of presses,
+    // so we can tell whether it is already in the list.
+    const key = S.counts.join(',');
+    if (S.ways.some(w => w.key === key)) {
+      S.result = { kind: 'ok', text: '✓ Correct, but you already found this way' };
+    } else {
+      S.ways.push({ key: key, text: describeWay(), clicks: clicks() });
+      S.ways.sort((a, b) => a.clicks - b.clicks);   // fewest clicks at the top
+      S.result = { kind: 'ok', text: `✓ ${fmt(S.target)} in ${clickWord(clicks())}` };
+    }
+    render();
+  }
+
+  $('checkBtn').onclick = check;
+
+
+  // ----------------------------------------------------------------------
+  // TOP BAR BUTTONS
+  // "element.onclick = function" sets what happens when it is clicked.
+  // ----------------------------------------------------------------------
+
+  // Set every count back to zero. The list of ways found is kept.
+  $('clear').onclick = () => {
+    S.counts.fill(0);
+    S.result = { kind: '', text: '' };
+    render();
+  };
+
+  // Hide or show Chitti's display. "!" means "not", so this flips true <-> false.
+  $('toggleTotal').onclick = () => {
+    S.showTotal = !S.showTotal;
+    render();
+  };
+
+  // Set a new target: a fresh puzzle, so the counts and the list of ways start again.
+  function setTarget() {
+    const n = readNumber($('setNum').value);
+    if (n < 1) return;
+    if (n > SETTINGS.maxTarget) {
+      S.result = { kind: 'no', text: `The target can be up to ${fmt(SETTINGS.maxTarget)}` };
+      render();
+      return;
+    }
+    S.target = n;
+    S.counts.fill(0);
+    S.ways = [];
+    S.result = { kind: '', text: '' };
+    $('setNum').value = '';
+    render();
+  }
+
+  // Run setTarget when the Set button is clicked...
+  $('setBtn').onclick = setTarget;
+  // ...or when Enter is pressed inside the target box. e.key says which key was pressed.
+  $('setNum').addEventListener('keydown', e => { if (e.key === 'Enter') setTarget(); });
+
+
+  // ----------------------------------------------------------------------
+  // START: build the columns, then fill in the numbers.
+  // ----------------------------------------------------------------------
+  buildMat();
+  render();
+  </script>
+</body>
+</html>

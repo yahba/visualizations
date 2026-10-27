@@ -1,0 +1,659 @@
+<!doctype html>
+<!--
+  ======================================================================
+  BASE EXCHANGE MACHINE
+  Math Explorer Club, The Break and Build Lab (BBL)
+
+  What it teaches: place value works the same way in ANY base.
+    - In base 5, FIVE counters in one place bundle into ONE counter in
+      the next place to the left. In base 2 it takes two, in base 10 ten.
+    - One counter can be broken back into that many in the place to its right.
+
+  This is a cut-down cousin of exchange-machine.html. It has no place
+  names (Ten, Hundred, Lakh), no period bands, no number in words and no
+  Indian / International toggle, because those only make sense in base 10.
+
+  How this file is organised (read it top to bottom):
+    1. <head>    : page settings, title, fonts
+    2. <style>   : CSS, which controls how everything LOOKS
+    3. <body>    : HTML, which says WHAT is on the page
+    4. <script>  : JavaScript, which controls how it BEHAVES
+  ======================================================================
+-->
+<html lang="en">
+
+<head>
+  <!-- Tells the browser the text uses the standard character set (so ² ₅ ← etc. display correctly). -->
+  <meta charset="utf-8">
+
+  <!-- Makes the page fit phone screens properly instead of showing a tiny zoomed-out desktop page. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+  <!-- The name shown on the browser tab. -->
+  <title>Base Exchange Machine</title>
+
+  <!-- Two free fonts from Google Fonts (the same ones as the other tools).
+       If there is no internet, the page still works and uses the computer's normal fonts. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Baloo+2:wght@500;700;800&display=swap">
+
+  <style>
+    /* ==================================================================
+       PART 2: CSS (how things look)
+       ================================================================== */
+
+    /* ------------------------------------------------------------------
+       COLOUR AND FONT SETTINGS  <- the easiest place to change the look
+       Each line gives a NAME to a colour (names start with --).
+       The rest of the CSS uses the names, e.g.  color: var(--warn);
+       ------------------------------------------------------------------ */
+    :root {
+      --bg:        #F3F5F9;  /* page background */
+      --surface:   #FFFFFF;  /* white boxes: number display, trays, buttons */
+      --mat:       #E6ECF4;  /* background of each place column */
+      --ink:       #16202D;  /* main text colour */
+      --muted:     #566275;  /* softer grey text */
+      --line:      #C6D0DE;  /* borders and empty-slot circles */
+      --accent:    #2B4A9E;  /* blue: keyboard focus outline, the base number */
+      --chip:      #F2A41A;  /* counter colour (marigold) */
+      --chip-ring: #B4700A;  /* counter outline */
+      --chip-hi:   #FFD47E;  /* counter highlight, gives a slight 3D look */
+      --ready:     #1D8A5A;  /* green: a place is ready to bundle */
+      --on-ready:  #FFFFFF;  /* text on the green Bundle button */
+      --warn:      #C23B0E;  /* red: a digit that is too big for this base */
+
+      /* Font lists: the browser uses the first one it has. */
+      --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+      --body:    "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    /* DARK MODE. Darker colours with the SAME names, so nothing else in the CSS changes.
+       The block appears twice: the first follows the device setting,
+       the second applies when a dark theme is chosen explicitly. */
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg:#10141B; --surface:#1A2029; --mat:#232B37; --ink:#EEF2F7; --muted:#9EA9BA; --line:#3A4658;
+        --accent:#93ABF2;
+        --chip:#F5B33C; --chip-ring:#A0650A; --chip-hi:#FFD88F;
+        --ready:#3CC086; --on-ready:#0C1A13; --warn:#FF8A5C;
+        color-scheme: dark;  /* also darkens scrollbars and text boxes */
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg:#10141B; --surface:#1A2029; --mat:#232B37; --ink:#EEF2F7; --muted:#9EA9BA; --line:#3A4658;
+      --accent:#93ABF2;
+      --chip:#F5B33C; --chip-ring:#A0650A; --chip-hi:#FFD88F;
+      --ready:#3CC086; --on-ready:#0C1A13; --warn:#FF8A5C;
+      color-scheme: dark;
+    }
+
+    /* ------------------------------------------------------------------
+       BASIC PAGE SETUP
+       ------------------------------------------------------------------ */
+
+    /* Make width/height include padding and borders (much easier to reason about). */
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--body);
+      font-size: 16px;
+    }
+
+    /* The outer wrapper: centres everything and limits the width on very wide screens. */
+    .wrap {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding-inline: clamp(16px, 3vw, 40px);
+      padding-block: 20px 48px;
+    }
+    /* Stack the sections of the page top to bottom with equal space between them. */
+    .wrap, main { display: flex; flex-direction: column; gap: 18px; }
+
+    /* ------------------------------------------------------------------
+       TOP BAR: title on the left, controls on the right
+       ------------------------------------------------------------------ */
+    .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; }
+    h1 { font-family: var(--display); font-weight: 800; font-size: clamp(1.5rem, 2.4vw, 2.1rem); line-height: 1.05; margin: 0; }
+    .tools { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+
+    .btn { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; color: var(--ink);
+           font: 700 .95rem var(--body); padding: .55rem .85rem; cursor: pointer; }
+    .grp { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-weight: 700; font-size: .9rem; }
+    /* The current base, shown between its − and + buttons. */
+    .basenow { font: 800 1.6rem/1 var(--display); color: var(--accent); min-width: 1.6em; text-align: center; }
+    .set { display: inline-flex; gap: 6px; }
+    .set input { width: 8rem; font: 700 1rem var(--body); padding: .5rem .7rem; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); }
+
+    /* A clear outline when using the keyboard (Tab key) to move between buttons. */
+    button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+    /* ------------------------------------------------------------------
+       NUMBER DISPLAY: the number written in this base, its usual (base ten) value, the warning
+       ------------------------------------------------------------------ */
+    .readout { background: var(--surface); border: 1.5px solid var(--line); border-radius: 16px; padding: 14px 24px;
+               display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 32px; }
+    /* font-variant-numeric: tabular-nums makes every digit the same width, so numbers don't jiggle when they change. */
+    .big    { font-family: var(--display); font-weight: 800; font-size: clamp(3rem, 7.5vw, 5.8rem); line-height: 1; font-variant-numeric: tabular-nums; }
+    /* The small base number written low after the numeral, as in 203₅. */
+    .big sub { font-size: .42em; color: var(--muted); vertical-align: baseline; margin-left: .08em; }
+    .equals { font-family: var(--display); font-weight: 700; font-size: clamp(1.6rem, 3.4vw, 2.8rem); color: var(--muted); font-variant-numeric: tabular-nums; }
+    .note   { flex-basis: 100%; color: var(--warn); font-weight: 700; font-size: clamp(1rem, 1.5vw, 1.25rem); margin: 6px 0 0; }
+
+    /* ------------------------------------------------------------------
+       THE MAT: a grid of place columns
+       ------------------------------------------------------------------ */
+
+    /* If the columns are wider than the screen (e.g. on a phone), scroll sideways inside this box. */
+    .matscroll { overflow-x: auto; padding-bottom: 6px; }
+
+    /* CSS Grid: "repeat(var(--n), ...)" makes N equal columns.
+       The script sets --n to the number of places showing. */
+    .mat { display: grid; grid-template-columns: repeat(var(--n), minmax(7.8rem, 1fr)); column-gap: 10px; min-width: min-content; }
+
+    /* One place column. */
+    .col { background: var(--mat); border-radius: 14px; padding: 12px 10px;
+           display: flex; flex-direction: column; gap: 10px;
+           border: 2.5px solid transparent; transition: border-color .2s, box-shadow .2s; }
+    /* When a place has enough counters to bundle, the script adds class "ready": green border and soft green glow. */
+    .col.ready { border-color: var(--ready); box-shadow: 0 0 0 5px color-mix(in srgb, var(--ready) 22%, transparent); }
+
+    .head { text-align: center; }
+    .name { font-family: var(--display); font-weight: 700; font-size: clamp(1.05rem, 1.5vw, 1.4rem); line-height: 1.1; }
+    .val  { color: var(--muted); font-weight: 700; font-size: 1.05rem; }
+
+    /* The tray holds two frames. Each frame has as many slots as the base. */
+    .tray { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border-radius: 10px; padding: 8px; }
+    /* One frame. The script sets --across (how many slots sit side by side) to suit the base. */
+    .frame { display: grid; grid-template-columns: repeat(var(--across), 1fr); gap: 5px; }
+    /* "+" means "the element right after". So: a dashed line above the SECOND frame only. */
+    .frame + .frame { border-top: 2px dashed var(--line); padding-top: 8px; }
+
+    /* An empty slot: a dashed circle. aspect-ratio:1 keeps it perfectly round.
+       max-width stops the counters growing huge in small bases, where a frame has only a few slots. */
+    .slot { aspect-ratio: 1; border-radius: 50%; border: 1.5px dashed var(--line); display: grid;
+            width: 100%; max-width: 3.2rem; justify-self: center; }
+    .slot.full { border-color: transparent; }  /* hide the dashed circle when a counter sits in it */
+
+    /* A counter. Every counter looks the same in every column:
+       ONLY its position gives it a value. That is the key idea of place value. */
+    .chip { border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--chip-hi), var(--chip) 58%); box-shadow: inset 0 0 0 2px var(--chip-ring);
+            appearance: none; border: 0; padding: 0; width: 100%; height: 100%; cursor: pointer; }
+
+    /* A newly added counter "pops" in: grows from small, slightly overshoots, settles. */
+    .chip.pop { animation: pop .35s ease-out; }
+    @keyframes pop { 0% { transform: scale(.3); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
+
+    /* The big digit under each column. Turns red (class "over") when it is too big for the base. */
+    .digit { font-family: var(--display); font-weight: 800; font-size: clamp(2.2rem, 3.6vw, 3.2rem); text-align: center; line-height: 1; font-variant-numeric: tabular-nums; }
+    .digit.over { color: var(--warn); }
+
+    /* The - and + buttons under each column. */
+    .ctrls { display: flex; gap: 8px; }
+    .ctrls button { flex: 1; font: 800 1.5rem/1 var(--display); padding: .35rem 0 .2rem; border-radius: 10px;
+                    border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+    .ctrls button:disabled { opacity: .35; cursor: default; }
+
+    /* The Bundle button. "visibility: hidden" hides it but KEEPS its space,
+       so the columns don't jump up and down when it appears. */
+    .bundle { visibility: hidden; font: 700 1rem var(--body); padding: .6rem .4rem; border-radius: 10px; border: 0;
+              background: var(--ready); color: var(--on-ready); cursor: pointer; }
+    .bundle.show { visibility: visible; animation: nudge 1.4s ease-in-out infinite; }
+    /* A gentle left-right wiggle, pointing towards the next place. */
+    @keyframes nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-4px); } }
+
+    .hint { color: var(--muted); font-size: 1rem; margin: 0; max-width: 70ch; }
+    .hint b { color: var(--ink); }
+
+    /* ------------------------------------------------------------------
+       POP-UP MESSAGE
+       Normally invisible (opacity 0); the script adds class "show" to fade it in.
+       ------------------------------------------------------------------ */
+    #toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0;
+             background: var(--ink); color: var(--bg); font-weight: 700; font-size: 1.1rem; padding: .75rem 1.2rem;
+             border-radius: 12px; transition: .25s; max-width: calc(100vw - 32px); text-align: center; z-index: 70; }
+    #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    /* Some people set their device to reduce motion. Respect that: switch the CSS animations off. */
+    @media (prefers-reduced-motion: reduce) { .bundle.show, .chip.pop { animation: none; } }
+  </style>
+</head>
+
+<body>
+  <!-- ====================================================================
+       PART 3: HTML (what is on the page)
+       ==================================================================== -->
+
+  <div class="wrap">
+
+    <!-- TOP BAR -->
+    <header class="bar">
+      <h1>Base Exchange Machine</h1>
+      <div class="tools">
+
+        <!-- Choose the base. The number in the middle is filled in by the script. -->
+        <span class="grp">Base
+          <button class="btn" id="baseLess" aria-label="Smaller base">−</button>
+          <span class="basenow" id="baseNow" aria-live="polite"></span>
+          <button class="btn" id="baseMore" aria-label="Bigger base">+</button>
+        </span>
+
+        <!-- Type an ordinary (base ten) number to see it in the chosen base.
+             The script makes both the Show button and the Enter key work. -->
+        <div class="set">
+          <input id="setNum" inputmode="numeric" placeholder="e.g. 53" aria-label="Number to show, in base ten">
+          <button class="btn" id="showBtn" type="button">Show</button>
+        </div>
+
+        <button class="btn" id="clear">Clear</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- NUMBER DISPLAY. aria-live="polite" makes screen readers announce changes. -->
+      <section class="readout" aria-live="polite">
+        <!-- The number written in the chosen base, e.g. 203 with a small 5 after it. -->
+        <div class="big" id="big"></div>
+        <!-- The same number in ordinary base ten, e.g. "= 53". Hidden when the base IS ten. -->
+        <div class="equals" id="equals"></div>
+        <!-- "hidden" hides this until the script decides to show it. -->
+        <p class="note" id="note" hidden></p>
+      </section>
+
+      <!-- THE MAT. Empty here: the script's render() function builds all the columns inside it. -->
+      <section class="matscroll" aria-label="Place value mat"><div class="mat" id="mat"></div></section>
+
+      <!-- The numbers in this sentence are filled in by the script, because they depend on the base. -->
+      <p class="hint" id="hint"></p>
+    </main>
+  </div>
+
+  <!-- The pop-up message box. role="status" lets screen readers read messages aloud. -->
+  <div id="toast" role="status"></div>
+
+
+  <script>
+  // ======================================================================
+  // PART 4: JAVASCRIPT (how it behaves)
+  //
+  // The whole program follows one simple pattern:
+  //
+  //     a click  ->  change the STATE  ->  call render()  ->  screen redrawn
+  //
+  // STATE is one object (called S below) that holds everything that can
+  // change. render() always redraws the mat from S, so the screen and the
+  // numbers can never disagree.
+  //
+  // The base is NEVER written into the code as a number. Everything that
+  // depends on it (tray size, when to bundle, place values) is worked out
+  // from S.base.
+  // ======================================================================
+
+
+  // ----------------------------------------------------------------------
+  // SETTINGS  <- the easiest place to change how the machine behaves
+  // ----------------------------------------------------------------------
+  const SETTINGS = {
+    // The base when the page opens. 5 means five counters bundle into one.
+    startBase: 5,
+
+    // The smallest and biggest base the Base buttons allow.
+    // Keep maxBase at 10 or less: above ten, digits would need letters (A, B, ...).
+    minBase: 2,
+    maxBase: 10,
+
+    // The number on the mat when the page opens, written as an ordinary base-ten number.
+    // 124 is 444 in base 5: every place is one short of a bundle, so adding one more
+    // sets off a chain of bundles (like 9,999 + 1 in base ten).
+    startNumber: 124,
+
+    // How many places (columns) show when the page opens, and the most the mat can have.
+    startPlaces: 4,
+    maxPlaces: 8,
+
+    // Each place has a tray of this many frames, and each frame holds "base" counters.
+    // 2 means a place can hold up to 2 × base counters.
+    framesPerPlace: 2,
+
+    // Bundle speed: the pause (milliseconds) after each counter leaves.
+    // Bigger = slower. 0 = instant. Below about 20 the steps are too quick to see.
+    bundleStepTime: 50,
+
+    // How long (milliseconds) a pop-up message stays on screen.
+    messageTime: 2800,
+  };
+
+
+  // Small raised and lowered digits, for writing 5² and 203₅.  SUP[3] is '³'.
+  const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+
+
+  // ----------------------------------------------------------------------
+  // STATE: everything that can change while the page is open
+  // ----------------------------------------------------------------------
+  const S = {
+    base:    SETTINGS.startBase,                   // the base: how many counters make a bundle
+    counts:  new Array(SETTINGS.maxPlaces).fill(0), // counters in each place, units place first
+    visible: SETTINGS.startPlaces,                 // how many places are showing
+    busy:    false,                                // true while a slow bundle is running, to block extra clicks
+  };
+
+
+  // ----------------------------------------------------------------------
+  // SMALL HELPER FUNCTIONS
+  // "x => something" is a short way to write a function (like Python's lambda).
+  // ----------------------------------------------------------------------
+
+  // $('big') finds the element with id="big". A short name because we use it often.
+  const $ = id => document.getElementById(id);
+
+  // The element we use most, found once and kept.
+  const mat = $('mat');
+
+  // Has the user asked their device for less motion? (true or false)
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Format an ordinary number with Indian commas: 205030 -> 2,05,030.
+  const fmt = n => n.toLocaleString('en-IN');
+
+  // What one counter is worth in place p: base to the power p.
+  // In base 5 the places are worth 1, 5, 25, 125 ...
+  const placeValue = p => S.base ** p;
+
+  // The most counters one place can hold: two frames of "base" slots.
+  const maxPerPlace = () => SETTINGS.framesPerPlace * S.base;
+
+  // The value on the mat: add up (counters × value of the place).
+  // Python version:  sum(c * base**p for p, c in enumerate(S.counts))
+  const total = () => S.counts.reduce((a, c, p) => a + c * placeValue(p), 0);
+
+  // The biggest number that fits on the mat with one proper digit in every place.
+  const biggest = () => S.base ** SETTINGS.maxPlaces - 1;
+
+  // A short name for a place, used in messages: "the 25s place".
+  const placeName = p => `${fmt(placeValue(p))}s`;
+
+  // Wait for t milliseconds. Used with "await" to pause between steps.
+  // JavaScript has no time.sleep(); this is like Python's "await asyncio.sleep(t / 1000)".
+  const wait = t => new Promise(resolve => setTimeout(resolve, t));
+
+
+  // ----------------------------------------------------------------------
+  // PUT A NUMBER ON THE MAT
+  // Turns an ordinary number n into its digits in the current base and
+  // stores one digit per place. This is the classic method: keep dividing
+  // by the base, and the remainders are the digits, units place first.
+  //   53 in base 5:  53 % 5 = 3,  10 % 5 = 0,  2 % 5 = 2   ->  203
+  // ----------------------------------------------------------------------
+  function setNumber(n) {
+    S.counts.fill(0);
+    let places = 0;
+    while (n > 0) {
+      S.counts[places] = n % S.base;       // % gives the remainder
+      n = Math.floor(n / S.base);
+      places++;
+    }
+    // Show enough columns for every digit, and never fewer than the starting number.
+    S.visible = Math.max(places, SETTINGS.startPlaces);
+  }
+
+
+  // ----------------------------------------------------------------------
+  // render(): REDRAW THE WHOLE MAT FROM THE STATE
+  // This is the most important function. Every change calls it.
+  // It builds the HTML for the mat as one long piece of text, then puts it
+  // on the page in one go.
+  //
+  // Text inside `backticks` can include values with ${...}
+  // e.g. `Place: ${name}` -- just like Python's f"Place: {name}".
+  // ----------------------------------------------------------------------
+  function render() {
+    const V = S.visible;
+    const B = S.base;
+    mat.style.setProperty('--n', V);  // tell the CSS grid how many columns to make
+
+    // How many slots sit side by side in a frame. Up to 5 they fit in one row;
+    // bigger bases are split into two rows (base 10 -> 5 across, as on a ten-frame).
+    mat.style.setProperty('--across', B <= 5 ? B : Math.ceil(B / 2));
+
+    let html = '';
+
+    // 1. One column per place, from the biggest place (on the left) down to the units.
+    for (let p = V - 1; p >= 0; p--) {
+      const c = S.counts[p];          // counters in this place
+      const ready = c >= B;           // enough to bundle?
+      const worth = fmt(placeValue(p));
+
+      // Two frames of B slots. Slots 0..c-1 hold a counter; the rest are empty.
+      // Each counter is a <button>, so it can be clicked (to break it up).
+      // data-p stores the place, so the click handler knows which column the counter was in.
+      let slots = '';
+      for (let f = 0; f < SETTINGS.framesPerPlace; f++) {
+        slots += '<div class="frame">';
+        for (let k = 0; k < B; k++) {
+          const i = f * B + k;
+          if (i < c) {
+            slots += `<div class="slot full"><button class="chip" data-p="${p}" aria-label="Break one counter worth ${worth} into ${B}"></button></div>`;
+          } else {
+            slots += '<div class="slot"></div>';
+          }
+        }
+        slots += '</div>';
+      }
+
+      // Put the column together: what the place is worth (25) and as a power (5²),
+      // the tray of slots, the digit, the - and + buttons, the Bundle button.
+      html += `
+        <div class="col${ready ? ' ready' : ''}" data-p="${p}">
+          <div class="head"><div class="name">${worth}</div><div class="val">${B}${SUP[p]}</div></div>
+          <div class="tray">${slots}</div>
+          <div class="digit${c >= B ? ' over' : ''}">${c}</div>
+          <div class="ctrls">
+            <button class="minus" data-p="${p}" aria-label="Remove one counter worth ${worth}"${c ? '' : ' disabled'}>−</button>
+            <button class="plus"  data-p="${p}" aria-label="Add one counter worth ${worth}"${c >= maxPerPlace() ? ' disabled' : ''}>+</button>
+          </div>
+          <button class="bundle${ready ? ' show' : ''}" data-p="${p}"${ready ? '' : ' tabindex="-1" aria-hidden="true"'}>← Bundle ${B}</button>
+        </div>`;
+    }
+
+    // 2. Replace everything inside the mat with the new HTML.
+    mat.innerHTML = html;
+
+    // 3. Update the number display.
+    //    Not while a slow bundle is running: the counts are part-way through then,
+    //    and bundling never changes the value, so the number already showing is right.
+    if (!S.busy) {
+      const t = total();
+      // t.toString(B) writes the number in base B. Python has bin() and hex() for bases 2 and 16;
+      // this works for any base. <sub> is the HTML tag for small lowered text.
+      $('big').innerHTML = `${t.toString(B)}<sub>${B}</sub>`;
+      // The ordinary value alongside. In base ten it would just repeat the big number, so it is left empty.
+      $('equals').textContent = B === 10 ? '' : `= ${fmt(t)}`;
+    }
+
+    // 4. The warning, shown if ANY place has too many counters for one digit.
+    $('note').hidden = !S.counts.some(c => c >= B);
+    $('note').textContent = `Some places hold ${B} or more. In base ${B} a digit can only be 0 to ${B - 1}, so bundle them.`;
+
+    // 5. The base shown in the top bar, and the hint sentence at the bottom.
+    $('baseNow').textContent = B;
+    $('hint').innerHTML = `<b>+</b> adds a counter. <b>Bundle ${B}</b> turns ${B} counters into one counter in the next place.
+      <b>Tap a counter</b> to break it into ${B} in the place to its right.`;
+  }
+
+
+  // ----------------------------------------------------------------------
+  // POP-UP MESSAGE
+  // ----------------------------------------------------------------------
+  let toastTimer;
+  function toast(message) {
+    const box = $('toast');
+    box.textContent = message;
+    box.classList.add('show');                 // CSS fades it in
+    clearTimeout(toastTimer);                  // cancel an older message's timer
+    toastTimer = setTimeout(() => box.classList.remove('show'), SETTINGS.messageTime);
+  }
+
+
+  // ----------------------------------------------------------------------
+  // THE "POP" WHEN A COUNTER ARRIVES
+  // The pop itself is a CSS animation (see .chip.pop in the CSS).
+  // The script only has to add the class "pop" to the right counter.
+  // ----------------------------------------------------------------------
+
+  // Find a column, and a slot inside it.
+  const col    = p => mat.querySelector(`.col[data-p="${p}"]`);
+  const slotEl = (p, i) => col(p).querySelectorAll('.slot')[i];
+
+  // Make the counter in slot i of place p "pop" in.
+  function popChip(p, i) {
+    const s = slotEl(p, i);
+    const chip = s && s.querySelector('.chip');
+    if (chip && !reduceMotion) chip.classList.add('pop');
+  }
+
+
+  // ----------------------------------------------------------------------
+  // BUNDLE: "base" counters in place p  ->  one counter in place p+1
+  // Done slowly: the counters leave ONE AT A TIME, with a short pause
+  // after each, and then the new counter appears in the next place.
+  //
+  // "async" lets the function pause with "await" without freezing the page.
+  // Same idea as "async def" in Python.
+  // ----------------------------------------------------------------------
+  async function bundle(p) {
+    const B = S.base;
+
+    // Check the rules first. "return" stops the function early.
+    if (S.counts[p] < B) return;
+    if (p === SETTINGS.maxPlaces - 1) { toast('That would need a new place. This mat has no more.'); return; }
+    if (S.counts[p + 1] >= maxPerPlace()) { toast(`The ${placeName(p + 1)} place is full. Bundle there first.`); return; }
+
+    // If the next place isn't showing yet, reveal it.
+    const revealed = p + 1 >= S.visible;
+    if (revealed) S.visible = p + 2;
+
+    // Pause between steps, unless the setting is 0 or the device asks for less motion.
+    const slow = SETTINGS.bundleStepTime > 0 && !reduceMotion;
+
+    S.busy = true;  // block other clicks while this runs
+    try {
+      // Step 1: take the counters away one at a time, redrawing after each.
+      for (let k = 0; k < B; k++) {
+        S.counts[p]--;
+        if (slow) { render(); await wait(SETTINGS.bundleStepTime); }
+      }
+
+      // Step 2: one counter arrives in the next place, and pops in.
+      S.counts[p + 1] += 1;
+      render();
+      popChip(p + 1, S.counts[p + 1] - 1);
+      if (revealed) toast(`A new place appears, worth ${fmt(placeValue(p + 1))}`);
+    } finally {
+      // "finally" always runs, even if something above went wrong, so the page never stays locked.
+      S.busy = false;
+    }
+  }
+
+
+  // ----------------------------------------------------------------------
+  // UNBUNDLE: one counter in place p  ->  "base" counters in place p-1
+  // ----------------------------------------------------------------------
+  function unbundle(p) {
+    const B = S.base;
+    if (p === 0) { toast('This is the smallest place on the mat. Breaking it up comes later, with fractions.'); return; }
+    if (S.counts[p - 1] + B > maxPerPlace()) { toast(`No room in the ${placeName(p - 1)} place. Bundle there first.`); return; }
+
+    // Update the state and redraw. The new counters pop in.
+    S.counts[p] -= 1;
+    S.counts[p - 1] += B;
+    render();
+    for (let k = 1; k <= B; k++) popChip(p - 1, S.counts[p - 1] - k);
+  }
+
+
+  // ----------------------------------------------------------------------
+  // CLICK HANDLING ON THE MAT
+  // Instead of attaching a listener to every button (which change each
+  // render), ONE listener on the whole mat checks which button was clicked.
+  // ----------------------------------------------------------------------
+  mat.addEventListener('click', e => {
+    if (S.busy) return;                         // ignore clicks while a bundle is running
+    const b = e.target.closest('button');       // the button that was clicked (if any)
+    if (!b) return;
+    const p = Number(b.dataset.p);              // which place, read from data-p="..."
+
+    if (b.classList.contains('plus')) {
+      if (S.counts[p] < maxPerPlace()) { S.counts[p]++; render(); popChip(p, S.counts[p] - 1); }
+    } else if (b.classList.contains('minus')) {
+      if (S.counts[p] > 0) { S.counts[p]--; render(); }
+    } else if (b.classList.contains('bundle')) {
+      bundle(p);
+    } else if (b.classList.contains('chip')) {
+      unbundle(p);
+    }
+  });
+
+
+  // ----------------------------------------------------------------------
+  // TOP BAR BUTTONS
+  // "element.onclick = function" sets what happens when it is clicked.
+  // ----------------------------------------------------------------------
+
+  // Change the base. The VALUE on the mat stays the same; it is laid out
+  // again in the new base, so the class can see one number written two ways.
+  function changeBase(newBase) {
+    if (S.busy) return;
+    if (newBase < SETTINGS.minBase || newBase > SETTINGS.maxBase) return;
+    const value = total();
+    if (value > newBase ** SETTINGS.maxPlaces - 1) {
+      toast(`${fmt(value)} needs more than ${SETTINGS.maxPlaces} places in base ${newBase}. Try a smaller number.`);
+      return;
+    }
+    S.base = newBase;
+    setNumber(value);
+    render();
+  }
+  $('baseLess').onclick = () => changeBase(S.base - 1);
+  $('baseMore').onclick = () => changeBase(S.base + 1);
+
+  // Remove all counters, and go back to the starting number of places.
+  $('clear').onclick = () => {
+    if (S.busy) return;
+    S.counts.fill(0);
+    S.visible = SETTINGS.startPlaces;
+    render();
+  };
+
+  // Type an ordinary number and press Show (or Enter): lay it out in the current base.
+  function showNumber() {
+    if (S.busy) return;
+
+    // Keep only the digits (removes commas and spaces).
+    // This /.../ pattern is a "regular expression": \D means "not a digit".
+    const digits = $('setNum').value.replace(/\D/g, '');
+    if (!digits) return;
+    const n = Number(digits);
+    if (n > biggest()) { toast(`Up to ${fmt(biggest())} fits on this mat in base ${S.base}.`); return; }
+
+    setNumber(n);
+    render();
+  }
+
+  // Run showNumber when the Show button is clicked...
+  $('showBtn').onclick = showNumber;
+  // ...or when Enter is pressed inside the number box. e.key says which key was pressed.
+  $('setNum').addEventListener('keydown', e => { if (e.key === 'Enter') showNumber(); });
+
+
+  // ----------------------------------------------------------------------
+  // START: put the starting number on the mat and draw it.
+  // ----------------------------------------------------------------------
+  setNumber(Math.min(SETTINGS.startNumber, biggest()));
+  render();
+  </script>
+</body>
+</html>

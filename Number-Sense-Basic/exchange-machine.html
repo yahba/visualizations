@@ -1,0 +1,737 @@
+<!doctype html>
+<!--
+  ======================================================================
+  PLACE VALUE EXCHANGE MACHINE
+  Math Explorer Club, The Break and Build Lab (BBL)
+
+  What it teaches: the "x10 rule" of place value.
+    - Ten counters in one place can be bundled into ONE counter in the
+      next place to the left.
+    - One counter can be broken back into TEN in the place to its right.
+
+  How this file is organised (read it top to bottom):
+    1. <head>    : page settings, title, fonts
+    2. <style>   : CSS, which controls how everything LOOKS
+    3. <body>    : HTML, which says WHAT is on the page
+    4. <script>  : JavaScript, which controls how it BEHAVES
+
+  Comment styles you will see:
+    HTML comments look like this:  <!- - ... - ->  (without the spaces)
+    CSS comments look like this:   /* ... */
+    JS comments look like this:    // ...   (one line)
+  The browser ignores comments; they are only for people reading the code.
+  ======================================================================
+-->
+<html lang="en">
+
+<head>
+  <!-- Tells the browser the text uses the standard character set (so ⁰ ¹ ² ← etc. display correctly). -->
+  <meta charset="utf-8">
+
+  <!-- Makes the page fit phone screens properly instead of showing a tiny zoomed-out desktop page. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+  <!-- The name shown on the browser tab. -->
+  <title>Place Value Exchange Machine</title>
+
+  <!-- Load two free fonts from Google Fonts:
+         Baloo 2               : rounded, friendly; used for big numbers and headings
+         Atkinson Hyperlegible : designed to be very easy to read; used for everything else
+       If there is no internet, the page still works and uses the computer's normal fonts. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Baloo+2:wght@500;700;800&display=swap">
+
+  <style>
+    /* ==================================================================
+       PART 2: CSS (how things look)
+
+       A CSS rule has two parts:
+           selector { property: value; }
+       The selector picks which elements the rule applies to:
+           body        : the <body> element
+           .col        : every element with class="col"
+           #toast      : the one element with id="toast"
+           .col.ready  : elements that have BOTH classes "col" and "ready"
+       ================================================================== */
+
+    /* ------------------------------------------------------------------
+       COLOUR AND FONT SETTINGS  <- the easiest place to change the look
+       Each line gives a NAME to a colour (names start with --).
+       The rest of the CSS uses the names, e.g.  color: var(--warn);
+       So changing a colour here changes it everywhere on the page.
+       Colours are written as hex codes: #RRGGBB (red, green, blue).
+       ------------------------------------------------------------------ */
+    :root {
+      --bg:        #F3F5F9;  /* page background */
+      --surface:   #FFFFFF;  /* white boxes: number display, trays, buttons */
+      --mat:       #E6ECF4;  /* background of each place-value column */
+      --ink:       #16202D;  /* main text colour */
+      --muted:     #566275;  /* softer grey text */
+      --line:      #C6D0DE;  /* borders and empty-slot circles */
+      --accent:    #2B4A9E;  /* blue for selected toggle buttons */
+      --on-accent: #FFFFFF;  /* text on top of the blue */
+      --band-a:    #D9E2F3;  /* period band colour 1 (e.g. "Ones") */
+      --band-b:    #EFE5D2;  /* period band colour 2 (e.g. "Thousands") */
+      --chip:      #F2A41A;  /* counter colour (marigold) */
+      --chip-ring: #B4700A;  /* counter outline */
+      --chip-hi:   #FFD47E;  /* counter highlight, gives a slight 3D look */
+      --ready:     #1D8A5A;  /* green: a place has 10 or more, ready to bundle */
+      --on-ready:  #FFFFFF;  /* text on the green Bundle button */
+      --warn:      #C23B0E;  /* red: a digit above 9 */
+
+      /* Font lists: the browser uses the first one it has. */
+      --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+      --body:    "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    /* DARK MODE. If the device is set to dark mode, use darker colours
+       with the SAME names, so nothing else in the CSS needs to change.
+       The block appears twice: the first follows the device setting,
+       the second applies when a dark theme is chosen explicitly. */
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg:#10141B; --surface:#1A2029; --mat:#232B37; --ink:#EEF2F7; --muted:#9EA9BA; --line:#3A4658;
+        --accent:#93ABF2; --on-accent:#10141B; --band-a:#26324A; --band-b:#3A3222;
+        --chip:#F5B33C; --chip-ring:#A0650A; --chip-hi:#FFD88F;
+        --ready:#3CC086; --on-ready:#0C1A13; --warn:#FF8A5C;
+        color-scheme: dark;  /* also darkens scrollbars and text boxes */
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg:#10141B; --surface:#1A2029; --mat:#232B37; --ink:#EEF2F7; --muted:#9EA9BA; --line:#3A4658;
+      --accent:#93ABF2; --on-accent:#10141B; --band-a:#26324A; --band-b:#3A3222;
+      --chip:#F5B33C; --chip-ring:#A0650A; --chip-hi:#FFD88F;
+      --ready:#3CC086; --on-ready:#0C1A13; --warn:#FF8A5C;
+      color-scheme: dark;
+    }
+
+    /* ------------------------------------------------------------------
+       BASIC PAGE SETUP
+       ------------------------------------------------------------------ */
+
+    /* Make width/height include padding and borders (much easier to reason about). */
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--body);
+      font-size: 16px;
+    }
+
+    /* The outer wrapper: centres everything and limits the width on very wide screens.
+       display:flex + flex-direction:column stacks the children top to bottom,
+       and gap puts equal space between them. */
+    .wrap {
+      max-width: 1440px;
+      margin: 0 auto;                          /* "auto" left/right margins centre it */
+      padding-inline: clamp(16px, 3vw, 40px);  /* side padding: between 16px and 40px, growing with screen width */
+      padding-block: 20px 48px;                /* top 20px, bottom 48px */
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* ------------------------------------------------------------------
+       TOP BAR: title on the left, controls on the right
+       flex-wrap:wrap lets the controls drop to a new line on small screens.
+       ------------------------------------------------------------------ */
+    .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; }
+    h1 { font-family: var(--display); font-weight: 800; font-size: clamp(1.5rem, 2.4vw, 2.1rem); line-height: 1.05; margin: 0; }
+    .tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+    /* A "segmented" toggle: buttons joined together, the selected one filled blue. */
+    .seg { display: inline-flex; border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+    .seg button, .btn { border: 0; background: transparent; color: var(--muted); font: 700 .95rem var(--body); padding: .55rem .85rem; cursor: pointer; }
+    /* aria-pressed="true" is set by the script on the selected button. */
+    .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+    .btn { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; color: var(--ink); }
+    .set { display: inline-flex; gap: 6px; align-items: stretch; }
+    /* The number box: wide enough for 9,99,99,999 and in big, readable digits,
+       because the class reads it from the projector.
+       min(...) keeps it from getting wider than a phone screen. */
+    .set input { width: min(17rem, 70vw); font: 800 1.6rem var(--display); letter-spacing: .03em;
+                 font-variant-numeric: tabular-nums;
+                 padding: .35rem .8rem; border: 2px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); }
+    /* The Show button next to it grows to the same height and gets slightly bigger text. */
+    .set .btn { font-size: 1.1rem; padding-inline: 1.1rem; }
+
+    /* A clear outline when using the keyboard (Tab key) to move between buttons. */
+    button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+    /* ------------------------------------------------------------------
+       NUMBER DISPLAY: the big number, the number in words, the warning
+       ------------------------------------------------------------------ */
+    .readout { background: var(--surface); border: 1.5px solid var(--line); border-radius: 16px; padding: 14px 24px;
+               display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 32px; }
+    /* font-variant-numeric: tabular-nums makes every digit the same width, so numbers don't jiggle when they change. */
+    .big   { font-family: var(--display); font-weight: 800; font-size: clamp(3rem, 7.5vw, 5.8rem); line-height: 1; font-variant-numeric: tabular-nums; }
+    .words { font-size: clamp(1.1rem, 1.9vw, 1.6rem); color: var(--muted); min-width: 0; flex: 1 1 16rem; }
+    .note  { flex-basis: 100%; color: var(--warn); font-weight: 700; font-size: clamp(1rem, 1.5vw, 1.25rem); margin: 6px 0 0; }
+
+    /* ------------------------------------------------------------------
+       THE MAT: a grid of place-value columns
+       ------------------------------------------------------------------ */
+
+    /* If the columns are wider than the screen (e.g. on a phone), scroll sideways inside this box. */
+    .matscroll { overflow-x: auto; padding-bottom: 6px; }
+
+    /* CSS Grid: "repeat(var(--n), ...)" makes N equal columns.
+       The script sets --n to the number of places showing.
+       minmax(7.8rem, 1fr) means: at least 7.8rem wide, otherwise share the space equally. */
+    .mat { display: grid; grid-template-columns: repeat(var(--n), minmax(7.8rem, 1fr)); column-gap: 10px; min-width: min-content; }
+
+    /* The coloured bands above the columns (Ones, Thousands, Lakhs, Crores). grid-row:1 = top row of the grid. */
+    .period { grid-row: 1; text-align: center; font: 700 .85rem var(--body); letter-spacing: .14em; text-transform: uppercase;
+              padding: .5rem; border-radius: 12px 12px 0 0; color: var(--ink); }
+    .period.a { background: var(--band-a); }
+    .period.b { background: var(--band-b); }
+
+    /* One place-value column. grid-row:2 = second row, under the bands. */
+    .col { grid-row: 2; background: var(--mat); border-radius: 0 0 14px 14px; padding: 12px 10px;
+           display: flex; flex-direction: column; gap: 10px;
+           border: 2.5px solid transparent; transition: border-color .2s, box-shadow .2s; }
+    /* When a place has 10 or more counters, the script adds class "ready": green border and soft green glow. */
+    .col.ready { border-color: var(--ready); box-shadow: 0 0 0 5px color-mix(in srgb, var(--ready) 22%, transparent); }
+
+    .head { text-align: center; }
+    .name { font-family: var(--display); font-weight: 700; font-size: clamp(1.05rem, 1.5vw, 1.4rem); line-height: 1.1; }
+    .val  { color: var(--muted); font-weight: 700; font-size: 1.05rem; }
+
+    /* The tray holds two ten-frames (10 + 10 = 20 counters). */
+    .tray { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border-radius: 10px; padding: 8px; }
+    /* One ten-frame: 5 across; with 10 slots that makes 2 rows. */
+    .frame { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+    /* "+" means "the element right after". So: a dashed line above the SECOND frame only. */
+    .frame + .frame { border-top: 2px dashed var(--line); padding-top: 8px; }
+
+    /* An empty slot: a dashed circle. aspect-ratio:1 keeps it perfectly round. */
+    .slot { aspect-ratio: 1; border-radius: 50%; border: 1.5px dashed var(--line); display: grid; }
+    .slot.full { border-color: transparent; }  /* hide the dashed circle when a counter sits in it */
+
+    /* A counter. Every counter looks the same in every column:
+       ONLY its position gives it a value. That is the key idea of place value.
+       radial-gradient gives the slight shine; inset box-shadow draws the outline ring. */
+    .chip { border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--chip-hi), var(--chip) 58%); box-shadow: inset 0 0 0 2px var(--chip-ring); }
+    .chip { appearance: none; border: 0; padding: 0; width: 100%; height: 100%; cursor: pointer; }
+
+    /* A newly added counter "pops" in: grows from small, slightly overshoots, settles. */
+    .chip.pop { animation: pop .35s ease-out; }
+    @keyframes pop { 0% { transform: scale(.3); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
+
+    /* The big digit under each column. Turns red (class "over") above 9. */
+    .digit { font-family: var(--display); font-weight: 800; font-size: clamp(2.2rem, 3.6vw, 3.2rem); text-align: center; line-height: 1; font-variant-numeric: tabular-nums; }
+    .digit.over { color: var(--warn); }
+
+    /* The - and + buttons under each column. */
+    .ctrls { display: flex; gap: 8px; }
+    .ctrls button { flex: 1; font: 800 1.5rem/1 var(--display); padding: .35rem 0 .2rem; border-radius: 10px;
+                    border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+    .ctrls button:disabled { opacity: .35; cursor: default; }
+
+    /* The Bundle button. "visibility: hidden" hides it but KEEPS its space,
+       so the columns don't jump up and down when it appears. */
+    .bundle { visibility: hidden; font: 700 1rem var(--body); padding: .6rem .4rem; border-radius: 10px; border: 0;
+              background: var(--ready); color: var(--on-ready); cursor: pointer; }
+    .bundle.show { visibility: visible; animation: nudge 1.4s ease-in-out infinite; }
+    /* A gentle left-right wiggle, pointing towards the next place. */
+    @keyframes nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-4px); } }
+
+    .hint { color: var(--muted); font-size: 1rem; margin: 0; max-width: 70ch; }
+    .hint b { color: var(--ink); }
+
+    /* ------------------------------------------------------------------
+       POP-UP MESSAGE
+       position: fixed  places an element relative to the screen, on top of everything.
+       z-index: a higher number sits on top.
+       ------------------------------------------------------------------ */
+
+    /* The message box at the bottom. Normally invisible (opacity 0);
+       the script adds class "show" to fade it in. */
+    #toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0;
+             background: var(--ink); color: var(--bg); font-weight: 700; font-size: 1.1rem; padding: .75rem 1.2rem;
+             border-radius: 12px; transition: .25s; max-width: calc(100vw - 32px); text-align: center; z-index: 70; }
+    #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    /* Some people set their device to reduce motion. Respect that: switch the CSS animations off. */
+    @media (prefers-reduced-motion: reduce) { .bundle.show, .chip.pop { animation: none; } }
+  </style>
+</head>
+
+<body>
+  <!-- ====================================================================
+       PART 3: HTML (what is on the page)
+       Each element has a tag (div, button, p, ...) and often:
+         class="..." : a style group, matched by ".name" in the CSS
+         id="..."    : a unique name, so the script can find this element
+       ==================================================================== -->
+
+  <div class="wrap">
+
+    <!-- TOP BAR -->
+    <div class="bar">
+      <h1>Place Value Exchange Machine</h1>
+      <div class="tools">
+
+        <!-- Indian / International toggle. The script listens for clicks using the ids. -->
+        <div class="seg" role="group" aria-label="Number system">
+          <button id="sysIn" aria-pressed="true">Indian</button>
+          <button id="sysIntl" aria-pressed="false">International</button>
+        </div>
+
+        <!-- Column label toggle: show each place's value (1,000) or its power of ten (10³). -->
+        <div class="seg" role="group" aria-label="Column label">
+          <button id="hdVal" aria-pressed="true">1,000</button>
+          <button id="hdPow" aria-pressed="false">10³</button>
+        </div>
+
+        <!-- Type a number to set up the mat. The script makes both the Show button and the Enter key work.
+             (A <form> would be the usual choice, but some page viewers block forms, so plain elements are safer.) -->
+        <div class="set">
+          <input id="setNum" inputmode="numeric" placeholder="e.g. 2,05,030" aria-label="Number to show">
+          <button class="btn" id="showBtn" type="button">Show</button>
+        </div>
+
+        <button class="btn" id="clear">Clear</button>
+      </div>
+    </div>
+
+    <!-- NUMBER DISPLAY. aria-live="polite" makes screen readers announce changes. -->
+    <div class="readout" aria-live="polite">
+      <div class="big" id="big">0</div>
+      <div class="words" id="words">Zero</div>
+      <!-- "hidden" hides this until the script decides to show it. -->
+      <p class="note" id="note" hidden>Some places hold 10 or more. A written digit can only be 0 to 9, so bundle them.</p>
+    </div>
+
+    <!-- THE MAT. Empty here: the script's render() function builds all the columns inside it. -->
+    <div class="matscroll"><div class="mat" id="mat"></div></div>
+
+    <p class="hint"><b>+</b> adds a counter. <b>Bundle 10</b> turns ten counters into one counter in the next place.
+      <b>Tap a counter</b> to break it into ten in the place to its right. Try adding one more to the ones.</p>
+  </div>
+
+  <!-- The pop-up message box. role="status" lets screen readers read messages aloud. -->
+  <div id="toast" role="status"></div>
+
+
+  <script>
+  // ======================================================================
+  // PART 4: JAVASCRIPT (how it behaves)
+  //
+  // The whole program follows one simple pattern:
+  //
+  //     a click  ->  change the STATE  ->  call render()  ->  screen redrawn
+  //
+  // STATE is one object (called S below) that holds everything that can
+  // change. render() always redraws the mat from S, so the screen and the
+  // numbers can never disagree.
+  // ======================================================================
+
+
+  // ----------------------------------------------------------------------
+  // SETTINGS  <- the easiest place to change how the machine behaves
+  // ----------------------------------------------------------------------
+  const SETTINGS = {
+    // Counters in each place when the page opens, ONES FIRST.
+    // [9,9,9,9,0,0,0,0] means 9 ones, 9 tens, 9 hundreds, 9 thousands = 9,999.
+    startCounts: [9, 9, 9, 9, 0, 0, 0, 0],
+
+    // How many places (columns) show when the page opens. 4 = ones up to thousands.
+    startPlaces: 4,
+
+    // Most counters one place can hold. 20 = two ten-frames.
+    maxPerPlace: 20,
+
+    // 'in' = Indian (lakh, crore), 'intl' = International (million).
+    startSystem: 'in',
+
+    // Bundle speed: the pause (milliseconds) after each counter leaves.
+    // 200 = ten counters take about 2 seconds. Bigger = slower. 0 = instant.
+    // Below about 20 the steps are too quick to see, so it looks instant.
+    bundleStepTime: 50,
+
+    // How long (milliseconds) a pop-up message stays on screen.
+    messageTime: 2800,
+  };
+
+
+  // ----------------------------------------------------------------------
+  // FIXED FACTS ABOUT PLACE VALUE
+  // "const" means this name will always point to the same thing.
+  // ----------------------------------------------------------------------
+
+  // Highest place on the mat: place 7 = 10 to the power 7 = one crore.
+  const MAXP = 7;
+
+  // Column names. Arrays are lists; position 0 is the first item.
+  // So NAMES.in[0] is 'One', NAMES.in[5] is 'Lakh'.
+  const NAMES = {
+    in:   ['One', 'Ten', 'Hundred', 'Thousand', 'Ten Thousand', 'Lakh', 'Ten Lakh', 'Crore'],
+    intl: ['One', 'Ten', 'Hundred', 'Thousand', 'Ten Thousand', 'Hundred Thousand', 'Million', 'Ten Million'],
+  };
+
+  // Plural names, used inside messages ("the hundreds place is full").
+  const PLURAL = {
+    in:   ['ones', 'tens', 'hundreds', 'thousands', 'ten thousands', 'lakhs', 'ten lakhs', 'crores'],
+    intl: ['ones', 'tens', 'hundreds', 'thousands', 'ten thousands', 'hundred thousands', 'millions', 'ten millions'],
+  };
+
+  // Periods: which places group together, shown as coloured bands.
+  // Each item is [lowest place, highest place, label].
+  // Indian groups go 3, then 2, 2 ...  International groups go 3, 3, 3 ...
+  // This is exactly why the commas sit in different places in the two systems.
+  const PERIODS = {
+    in:   [[0, 2, 'Ones'], [3, 4, 'Thousands'], [5, 6, 'Lakhs'], [7, 7, 'Crores']],
+    intl: [[0, 2, 'Ones'], [3, 5, 'Thousands'], [6, 7, 'Millions']],
+  };
+
+  // Superscript digits, for writing 10⁰, 10¹, 10² ...  SUP[3] is '³'.
+  const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+
+
+  // ----------------------------------------------------------------------
+  // STATE: everything that can change while the page is open
+  // [...x] makes a COPY of the list, so changing S.counts later
+  // does not change SETTINGS.startCounts.
+  // ----------------------------------------------------------------------
+  const S = {
+    counts:  [...SETTINGS.startCounts],  // counters in each place, ones first
+    visible: SETTINGS.startPlaces,        // how many places are showing
+    sys:     SETTINGS.startSystem,        // 'in' or 'intl'
+    head:    'value',                     // column label: 'value' (1,000) or 'power' (10³)
+    busy:    false,                       // true while a slow bundle is running, to block extra clicks
+  };
+
+
+  // ----------------------------------------------------------------------
+  // SMALL HELPER FUNCTIONS
+  // "x => something" is a short way to write a function (like Python's lambda).
+  // ----------------------------------------------------------------------
+
+  // $('big') finds the element with id="big". A short name because we use it often.
+  const $ = id => document.getElementById(id);
+
+  // The element we use most, found once and kept.
+  const mat = $('mat');
+
+  // Has the user asked their device for less motion? (true or false)
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Format a number with commas in the current system.
+  // 'en-IN' gives 2,05,030 (Indian); 'en-US' gives 205,030 (International).
+  // The "condition ? a : b" form means: if condition, use a, otherwise b.
+  const fmt = n => n.toLocaleString(S.sys === 'in' ? 'en-IN' : 'en-US');
+
+  // The value on the mat: add up (counters × 10 to the power of the place).
+  // reduce() walks through the list, keeping a running total "a".
+  // Python version:  sum(c * 10**p for p, c in enumerate(S.counts))
+  const total = () => S.counts.reduce((a, c, p) => a + c * 10 ** p, 0);
+
+  // Wait for t milliseconds. Used with "await" to pause between steps.
+  // JavaScript has no time.sleep(); this is like Python's "await asyncio.sleep(t / 1000)".
+  const wait = t => new Promise(resolve => setTimeout(resolve, t));
+
+
+  // ----------------------------------------------------------------------
+  // NUMBER IN WORDS
+  // e.g. 205030 -> "Two lakh five thousand thirty"
+  // ----------------------------------------------------------------------
+  const W1  = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
+               'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  const W10 = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+  // Words for 0 to 99. Below 20 we look it up; above, tens word + ones word ("forty-five").
+  function w2(n) {
+    if (n < 20) return W1[n];
+    const tensWord = W10[Math.floor(n / 10)];
+    const onesPart = n % 10 ? '-' + W1[n % 10] : '';  // % gives the remainder
+    return tensWord + onesPart;
+  }
+
+  // Words for 0 to 999: "three hundred" + the words for the last two digits.
+  function w3(n) {
+    const hundreds = Math.floor(n / 100);
+    const rest = n % 100;
+    const out = [];
+    if (hundreds) out.push(W1[hundreds] + ' hundred');
+    if (rest) out.push(w2(rest));
+    return out.join(' ');
+  }
+
+  // The whole number in words. Split it into its periods, then name each part.
+  function wordsOf(n) {
+    if (n === 0) return 'Zero';
+    const parts = [];
+
+    if (S.sys === 'in') {
+      // Indian: crore, lakh, thousand, then the last three digits.
+      const crore = Math.floor(n / 1e7); n %= 1e7;   // 1e7 is 10,000,000
+      const lakh  = Math.floor(n / 1e5); n %= 1e5;   // 1e5 is 1,00,000
+      const thou  = Math.floor(n / 1e3); n %= 1e3;
+      if (crore) parts.push(w3(crore) + ' crore');
+      if (lakh)  parts.push(w2(lakh) + ' lakh');
+      if (thou)  parts.push(w2(thou) + ' thousand');
+      if (n)     parts.push(w3(n));
+    } else {
+      // International: million, thousand, then the last three digits.
+      const million = Math.floor(n / 1e6); n %= 1e6;
+      const thou    = Math.floor(n / 1e3); n %= 1e3;
+      if (million) parts.push(w3(million) + ' million');
+      if (thou)    parts.push(w3(thou) + ' thousand');
+      if (n)       parts.push(w3(n));
+    }
+
+    const s = parts.join(' ');
+    return s[0].toUpperCase() + s.slice(1);  // capital first letter
+  }
+
+
+  // ----------------------------------------------------------------------
+  // render(): REDRAW THE WHOLE MAT FROM THE STATE
+  // This is the most important function. Every change calls it.
+  // It builds the HTML for the mat as one long piece of text, then puts it
+  // on the page in one go.
+  //
+  // Text inside `backticks` can include values with ${...}
+  // e.g. `Place: ${name}` -- just like Python's f"Place: {name}".
+  // ----------------------------------------------------------------------
+  function render() {
+    const V = S.visible;
+    mat.style.setProperty('--n', V);  // tell the CSS grid how many columns to make
+    let html = '';
+
+    // 1. The period bands on top (Ones, Thousands, Lakhs ...).
+    //    Columns are drawn biggest place on the LEFT, so place p sits in grid column (V - p).
+    //    A band stretches from the column of its highest place to its lowest place.
+    PERIODS[S.sys].forEach(([lo, hi, label], i) => {
+      if (lo > V - 1) return;                 // this period isn't showing yet: skip it
+      const top = Math.min(hi, V - 1);        // don't stretch past the last visible place
+      const colour = i % 2 ? 'b' : 'a';       // alternate the two band colours
+      html += `<div class="period ${colour}" style="grid-column:${V - top}/${V - lo + 1}">${label}</div>`;
+    });
+
+    // 2. One column per place, from the biggest place down to the ones.
+    for (let p = V - 1; p >= 0; p--) {
+      const c = S.counts[p];          // counters in this place
+      const ready = c >= 10;          // enough to bundle?
+      const name = NAMES[S.sys][p];
+
+      // 20 slots in two ten-frames. Slots 0..c-1 hold a counter; the rest are empty.
+      // Each counter is a <button>, so it can be clicked (to break it into ten).
+      // data-p stores the place, so the click handler knows which column the counter was in.
+      let slots = '';
+      for (let f = 0; f < 2; f++) {
+        slots += '<div class="frame">';
+        for (let k = 0; k < 10; k++) {
+          const i = f * 10 + k;
+          if (i < c) {
+            slots += `<div class="slot full"><button class="chip" data-p="${p}" aria-label="Break one ${name.toLowerCase()} into ten"></button></div>`;
+          } else {
+            slots += '<div class="slot"></div>';
+          }
+        }
+        slots += '</div>';
+      }
+
+      // The small label under the name: 1,000  or  10³
+      const label = S.head === 'value' ? fmt(10 ** p) : '10' + SUP[p];
+
+      // Put the column together: heading, tray of slots, digit, - and + buttons, Bundle button.
+      html += `
+        <div class="col${ready ? ' ready' : ''}" data-p="${p}" style="grid-column:${V - p}">
+          <div class="head"><div class="name">${name}</div><div class="val">${label}</div></div>
+          <div class="tray">${slots}</div>
+          <div class="digit${c > 9 ? ' over' : ''}">${c}</div>
+          <div class="ctrls">
+            <button class="minus" data-p="${p}" aria-label="Remove one ${name.toLowerCase()}"${c ? '' : ' disabled'}>−</button>
+            <button class="plus"  data-p="${p}" aria-label="Add one ${name.toLowerCase()}"${c >= SETTINGS.maxPerPlace ? ' disabled' : ''}>+</button>
+          </div>
+          <button class="bundle${ready ? ' show' : ''}" data-p="${p}"${ready ? '' : ' tabindex="-1" aria-hidden="true"'}>← Bundle 10</button>
+        </div>`;
+    }
+
+    // 3. Replace everything inside the mat with the new HTML.
+    mat.innerHTML = html;
+
+    // 4. Update the number display.
+    const t = total();
+    //    Not while a slow bundle is running: the counts are part-way through then,
+    //    and bundling never changes the value, so the number already showing is right.
+    if (!S.busy) {
+      $('big').textContent = fmt(t);
+      $('words').textContent = wordsOf(t);
+    }
+    $('note').hidden = !S.counts.some(c => c > 9);  // show the warning if ANY place has 10 or more
+
+    // 5. Mark which toggle buttons are selected (the CSS colours them blue).
+    $('sysIn').setAttribute('aria-pressed', S.sys === 'in');
+    $('sysIntl').setAttribute('aria-pressed', S.sys === 'intl');
+    $('hdVal').setAttribute('aria-pressed', S.head === 'value');
+    $('hdPow').setAttribute('aria-pressed', S.head === 'power');
+  }
+
+
+  // ----------------------------------------------------------------------
+  // POP-UP MESSAGE
+  // ----------------------------------------------------------------------
+  let toastTimer;
+  function toast(message) {
+    const box = $('toast');
+    box.textContent = message;
+    box.classList.add('show');                 // CSS fades it in
+    clearTimeout(toastTimer);                  // cancel an older message's timer
+    toastTimer = setTimeout(() => box.classList.remove('show'), SETTINGS.messageTime);
+  }
+
+
+  // ----------------------------------------------------------------------
+  // THE "POP" WHEN A COUNTER ARRIVES
+  // The pop itself is a CSS animation (see .chip.pop in the CSS).
+  // The script only has to add the class "pop" to the right counter.
+  // ----------------------------------------------------------------------
+
+  // Find a column, and a slot inside it.
+  const col    = p => mat.querySelector(`.col[data-p="${p}"]`);
+  const slotEl = (p, i) => col(p).querySelectorAll('.slot')[i];
+
+  // Make the counter in slot i of place p "pop" in.
+  function popChip(p, i) {
+    const s = slotEl(p, i);
+    const chip = s && s.querySelector('.chip');
+    if (chip && !reduceMotion) chip.classList.add('pop');
+  }
+
+
+  // ----------------------------------------------------------------------
+  // BUNDLE: ten counters in place p  ->  one counter in place p+1
+  // Done slowly: the ten counters leave ONE AT A TIME, with a short pause
+  // after each, and then the new counter appears in the next place.
+  //
+  // "async" lets the function pause with "await" without freezing the page.
+  // Same idea as "async def" in Python.
+  // ----------------------------------------------------------------------
+  async function bundle(p) {
+    // Check the rules first. "return" stops the function early.
+    if (S.counts[p] < 10) return;
+    if (p === MAXP) { toast('Ten crores would need a new place. This mat stops at crores.'); return; }
+    if (S.counts[p + 1] >= SETTINGS.maxPerPlace) { toast(`The ${PLURAL[S.sys][p + 1]} place is full. Bundle there first.`); return; }
+
+    // If the next place isn't showing yet, reveal it.
+    const revealed = p + 1 >= S.visible;
+    if (revealed) S.visible = p + 2;
+
+    // Pause between steps, unless the setting is 0 or the device asks for less motion.
+    const slow = SETTINGS.bundleStepTime > 0 && !reduceMotion;
+
+    S.busy = true;  // block other clicks while this runs
+    try {
+      // Step 1: take the ten counters away one at a time, redrawing after each.
+      for (let k = 0; k < 10; k++) {
+        S.counts[p]--;
+        if (slow) { render(); await wait(SETTINGS.bundleStepTime); }
+      }
+
+      // Step 2: one counter arrives in the next place, and pops in.
+      S.counts[p + 1] += 1;
+      render();
+      popChip(p + 1, S.counts[p + 1] - 1);
+      if (revealed) toast(`A new place appears: ${NAMES[S.sys][p + 1]}`);
+    } finally {
+      // "finally" always runs, even if something above went wrong, so the page never stays locked.
+      S.busy = false;
+    }
+  }
+
+
+  // ----------------------------------------------------------------------
+  // UNBUNDLE: one counter in place p  ->  ten counters in place p-1
+  // ----------------------------------------------------------------------
+  function unbundle(p) {
+    if (p === 0) { toast('Breaking a one into ten tenths comes later, with decimals.'); return; }
+    if (S.counts[p - 1] + 10 > SETTINGS.maxPerPlace) { toast(`No room in the ${PLURAL[S.sys][p - 1]} place. Bundle there first.`); return; }
+
+    // Update the state and redraw. The ten new counters pop in.
+    S.counts[p] -= 1;
+    S.counts[p - 1] += 10;
+    render();
+    for (let k = 1; k <= 10; k++) popChip(p - 1, S.counts[p - 1] - k);
+  }
+
+
+  // ----------------------------------------------------------------------
+  // CLICK HANDLING ON THE MAT
+  // Instead of attaching a listener to every button (which change each
+  // render), ONE listener on the whole mat checks which button was clicked.
+  // ----------------------------------------------------------------------
+  mat.addEventListener('click', e => {
+    if (S.busy) return;                         // ignore clicks while a bundle is running
+    const b = e.target.closest('button');       // the button that was clicked (if any)
+    if (!b) return;
+    const p = Number(b.dataset.p);              // which place, read from data-p="..."
+
+    if (b.classList.contains('plus')) {
+      if (S.counts[p] < SETTINGS.maxPerPlace) { S.counts[p]++; render(); popChip(p, S.counts[p] - 1); }
+    } else if (b.classList.contains('minus')) {
+      if (S.counts[p] > 0) { S.counts[p]--; render(); }
+    } else if (b.classList.contains('bundle')) {
+      bundle(p);
+    } else if (b.classList.contains('chip')) {
+      unbundle(p);
+    }
+  });
+
+
+  // ----------------------------------------------------------------------
+  // TOP BAR BUTTONS
+  // "element.onclick = function" sets what happens when it is clicked.
+  // ----------------------------------------------------------------------
+  // The number system can't change during a bundle, because the big number is not redrawn then.
+  $('sysIn').onclick   = () => { if (S.busy) return; S.sys = 'in';   render(); };
+  $('sysIntl').onclick = () => { if (S.busy) return; S.sys = 'intl'; render(); };
+  $('hdVal').onclick   = () => { S.head = 'value'; render(); };
+  $('hdPow').onclick   = () => { S.head = 'power'; render(); };
+
+  // Remove all counters, and go back to the starting number of places.
+  $('clear').onclick = () => {
+    if (S.busy) return;
+    S.counts.fill(0);
+    S.visible = SETTINGS.startPlaces;
+    $('setNum').value = '';   // empty the number box too, ready for the next number
+    render();
+  };
+
+  // Type a number and press Show (or Enter): put the right counters in each place.
+  function showNumber() {
+    if (S.busy) return;
+
+    // Keep only the digits (removes commas and spaces), and drop leading zeros.
+    // These /.../ patterns are "regular expressions": \D means "not a digit".
+    const digits = $('setNum').value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+    if (!digits) return;
+    if (digits.length > MAXP + 1) { toast('Up to 9,99,99,999 fits on this mat.'); return; }
+
+    // "205030" -> reverse to "030502" so the ones digit comes first, matching S.counts.
+    S.counts.fill(0);
+    [...digits].reverse().forEach((ch, p) => { S.counts[p] = Number(ch); });
+    S.visible = Math.max(S.visible, digits.length, 2);  // make sure every digit has a column
+    render();
+    // The box keeps exactly what was typed, so kids can compare it with the
+    // big number above, which shows the commas and the words.
+  }
+
+  // Run showNumber when the Show button is clicked...
+  $('showBtn').onclick = showNumber;
+  // ...or when Enter is pressed inside the number box. e.key says which key was pressed.
+  $('setNum').addEventListener('keydown', e => { if (e.key === 'Enter') showNumber(); });
+
+
+  // ----------------------------------------------------------------------
+  // START: draw the mat for the first time when the page opens.
+  // ----------------------------------------------------------------------
+  render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,476 @@
+<!doctype html>
+<!--
+  ======================================================================
+  PLACE VALUE ZOOM STRIP
+  Math Explorer Club, The Break and Build Lab (BBL)
+
+  What it teaches: how FAST numbers grow when each place is 10 times the
+  one before.
+    - We start with one red block: "1".
+    - Each "Zoom out" squeezes everything we have into one tenth of the
+      strip, and nine more copies fill the rest. So the strip now shows
+      10 times as much.
+    - The red "1" gets 10 times thinner with every zoom, until it is far
+      too small to see.
+
+  How this file is organised (read it top to bottom):
+    1. <title>, fonts and <style> : CSS, which controls how things LOOK
+    2. HTML                        : WHAT is on the page
+    3. <script>                    : JavaScript, how it BEHAVES
+
+  New ideas in this file (compared with the Exchange Machine):
+    - <canvas>: a drawing surface. Instead of building the picture out of
+      HTML boxes, the script DRAWS lines and rectangles on it, like a
+      painter. That suits a picture that changes smoothly every frame.
+    - Animation by redrawing: to zoom, the script redraws the strip 100
+      times, each time zoomed a tiny bit more, with a short wait in between.
+    - Meaningful HTML tags: <header>, <main>, <section>. They behave like
+      <div> but say what each part of the page is for.
+  ======================================================================
+-->
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- The name shown on the browser tab. -->
+<title>Place Value Zoom Strip</title>
+
+<!-- Same two fonts as the Exchange Machine, so the tools look like one family. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Baloo+2:wght@500;700;800&display=swap">
+
+<style>
+  /* ==================================================================
+     PART 1: CSS (how things look)
+     ================================================================== */
+
+  /* ------------------------------------------------------------------
+     COLOUR AND FONT SETTINGS  <- the easiest place to change the look
+     The canvas drawing READS these colours too (see draw() in the
+     script), so changing a colour here also changes the strip.
+     ------------------------------------------------------------------ */
+  :root {
+    --bg:        #F3F5F9;  /* page background */
+    --surface:   #FFFFFF;  /* white boxes */
+    --ink:       #16202D;  /* main text, strip outline */
+    --muted:     #566275;  /* softer grey text */
+    --line:      #C6D0DE;  /* borders */
+    --accent:    #2B4A9E;  /* blue for the main Zoom out button */
+    --on-accent: #FFFFFF;  /* text on top of the blue */
+    --cell:      #D9E2F3;  /* the strip's fill colour */
+    --prev:      #F6C766;  /* highlight: "everything we had before this zoom" */
+    --unit:      #D7263D;  /* the red "1" */
+    --tick:      #2B3A55;  /* lines dividing the strip into blocks */
+
+    --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+    --body:    "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  /* DARK MODE: same names, darker values (see the Exchange Machine for the full explanation). */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#10141B; --surface:#1A2029; --ink:#EEF2F7; --muted:#9EA9BA; --line:#3A4658;
+      --accent:#93ABF2; --on-accent:#10141B; --cell:#26324A; --prev:#8A6A22; --unit:#FF5468; --tick:#B9C6DD;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:#10141B; --surface:#1A2029; --ink:#EEF2F7; --muted:#9EA9BA; --line:#3A4658;
+    --accent:#93ABF2; --on-accent:#10141B; --cell:#26324A; --prev:#8A6A22; --unit:#FF5468; --tick:#B9C6DD;
+    color-scheme: dark;
+  }
+
+  /* ------------------------------------------------------------------
+     BASIC PAGE SETUP (same as the Exchange Machine)
+     ------------------------------------------------------------------ */
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; }
+
+  /* The wrapper: centred, limited width, children stacked with equal gaps. */
+  .wrap { max-width: 1440px; margin: 0 auto; padding-inline: clamp(16px, 3vw, 40px); padding-block: 20px 48px;
+          display: flex; flex-direction: column; gap: 18px; }
+
+  /* TOP BAR: the title. */
+  header.bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: clamp(1.5rem, 2.4vw, 2.1rem); line-height: 1.05; margin: 0; }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  /* ------------------------------------------------------------------
+     READOUT: the big number, its name, and the two "how big is it" facts
+     ------------------------------------------------------------------ */
+  .readout { background: var(--surface); border: 1.5px solid var(--line); border-radius: 16px; padding: 16px 24px;
+             display: flex; flex-direction: column; gap: 14px; }
+  .headline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 28px; }
+  .big  { font-family: var(--display); font-weight: 800; font-size: clamp(3rem, 7.5vw, 5.8rem); line-height: 1; font-variant-numeric: tabular-nums; }
+  .name { font-family: var(--display); font-weight: 700; font-size: clamp(1.4rem, 2.6vw, 2.2rem); line-height: 1.1; }
+  .name small { display: block; font-family: var(--body); font-weight: 700; font-size: .55em; color: var(--muted); }
+
+  /* The facts: a grid that fits as many columns as there is room for (at least 13rem each).
+     "auto-fit" + minmax is a common trick: side by side on a projector, stacked on a phone. */
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 10px; margin: 0; }
+  .fact { border-top: 2px solid var(--line); padding-top: 8px; }
+  .fact dt { font-size: .8rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .fact dd { margin: 4px 0 0; font-family: var(--display); font-weight: 700; font-size: clamp(1.2rem, 2vw, 1.7rem); line-height: 1.15; }
+
+  /* ------------------------------------------------------------------
+     THE STAGE: the canvas where the strip is drawn
+     The canvas fills the width of its box. Its height is fixed in CSS;
+     the script then matches its drawing size to these CSS sizes.
+     ------------------------------------------------------------------ */
+  .stage { background: var(--surface); border: 1.5px solid var(--line); border-radius: 16px; padding: 8px 0; }
+  canvas { display: block; width: 100%; height: clamp(200px, 26vw, 260px); }
+
+  /* ------------------------------------------------------------------
+     CONTROLS: big buttons for the projector
+     ------------------------------------------------------------------ */
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .controls button { font: 800 clamp(1.1rem, 1.6vw, 1.4rem) var(--display); padding: .6rem 1.3rem; border-radius: 12px;
+                     border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+  .controls button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .controls button:disabled { opacity: .35; cursor: default; }
+  .hint { color: var(--muted); font-size: 1rem; margin: 0; max-width: 70ch; }
+  .hint b { color: var(--ink); }
+</style>
+</head>
+<body>
+
+
+
+<!-- ====================================================================
+     PART 2: HTML (what is on the page)
+     ==================================================================== -->
+<div class="wrap">
+
+  <!-- <header>: the top of the page. -->
+  <header class="bar">
+    <h1>Place Value Zoom Strip</h1>
+  </header>
+
+  <!-- <main>: the main content of the page.
+       width:100% makes it as wide as the page; without it, it would shrink to fit its contents. -->
+  <main class="wrap" style="padding:0; width:100%">
+
+    <!-- The number we have reached, and facts about how big it is.
+         aria-live="polite" makes screen readers announce changes. -->
+    <section class="readout" aria-live="polite">
+      <div class="headline">
+        <div class="big" id="big">1</div>
+        <div class="name" id="name">One</div>
+      </div>
+
+      <!-- <dl> is a "description list": pairs of <dt> (term) and <dd> (description).
+           A natural fit for label + value pairs like these. -->
+      <dl class="facts">
+        <div class="fact"><dt>Power of ten</dt><dd id="power">10⁰</dd></div>
+        <div class="fact"><dt>Our red 1 on screen</dt><dd id="size">fills the strip</dd></div>
+      </dl>
+    </section>
+
+    <!-- The drawing surface. The script draws the strip here. -->
+    <section class="stage">
+      <canvas id="strip" aria-label="A strip showing the current number as blocks of ten"></canvas>
+    </section>
+
+    <!-- Buttons. Keyboard also works: right arrow zooms out, left arrow zooms in. -->
+    <section class="controls">
+      <button id="zoomIn">− Zoom in (÷10)</button>
+      <button id="zoomOut" class="primary">Zoom out (×10) +</button>
+      <button id="reset">Back to 1</button>
+    </section>
+
+    <p class="hint"><b>Zoom out</b> squeezes everything into one block and adds nine more, so the strip shows ten times as much.
+      Watch the red <b>1</b> get thinner each time. Keyboard: <b>→</b> zoom out, <b>←</b> zoom in.</p>
+  </main>
+</div>
+
+
+<script>
+// ======================================================================
+// PART 3: JAVASCRIPT (how it behaves)
+//
+// Same pattern as the Exchange Machine:
+//     a click -> change the STATE -> redraw the screen from the state
+//
+// Two numbers describe the state:
+//   S.level : the whole number of zooms so far (0 = "1", 5 = "1 lakh").
+//   S.z     : the zoom amount being DRAWN right now. During an animation
+//             it slides smoothly between levels, e.g. 4.0 -> 4.37 -> 5.0.
+// ======================================================================
+
+
+// ----------------------------------------------------------------------
+// SETTINGS  <- the easiest place to change how it behaves
+// ----------------------------------------------------------------------
+const SETTINGS = {
+  // Highest level you can zoom out to. 7 = one crore, 9 = 100 crore (one arab).
+  maxLevel: 9,
+
+  // A zoom is drawn as this many small steps...
+  zoomSteps: 100,
+
+  // ...with this pause (milliseconds) after each step.
+  // 100 steps × 10 ms = about 1 second, plus the drawing time. Bigger = slower.
+  stepTime: 10,
+};
+
+
+// ----------------------------------------------------------------------
+// NAMES FOR EACH LEVEL (Indian number system)
+// NAMES[5] is the name for 10 to the power 5.
+// ----------------------------------------------------------------------
+const NAMES = ['One', 'Ten', 'Hundred', 'One Thousand', 'Ten Thousand', 'One Lakh', 'Ten Lakh', 'One Crore', 'Ten Crore', 'Hundred Crore'];
+
+// Extra notes shown under some names. The number on the left is the level.
+const NOTES = { 9: 'also called one arab' };
+
+const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';  // superscript digits for 10⁰, 10¹, ...
+
+
+// ----------------------------------------------------------------------
+// STATE
+// ----------------------------------------------------------------------
+const S = {
+  level: 0,                    // whole zooms so far
+  z: 0,                        // zoom being drawn (can be in between levels)
+  busy: false,                 // true while a zoom is being drawn, to block extra clicks
+};
+
+
+// ----------------------------------------------------------------------
+// SMALL HELPERS
+// ----------------------------------------------------------------------
+const $ = id => document.getElementById(id);
+const canvas = $('strip');
+const ctx = canvas.getContext('2d');   // the "pen" we draw with on the canvas
+
+// Wait for t milliseconds. Used with "await" to pause between steps.
+// JavaScript has no time.sleep(); this is like Python's "await asyncio.sleep(t / 1000)".
+const wait = t => new Promise(resolve => setTimeout(resolve, t));
+
+// Indian commas: 100000 -> 1,00,000.
+const fmt = n => n.toLocaleString('en-IN');
+
+// Round to 1 decimal place, and drop ".0" (so 3.0 shows as 3).
+const round1 = x => (x >= 100 ? Math.round(x) : Math.round(x * 10) / 10);
+
+// Read a colour from the CSS settings at the top, e.g. css('--unit') -> '#D7263D'.
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+
+// ----------------------------------------------------------------------
+// "HOW BIG IS IT" FACTS
+// ----------------------------------------------------------------------
+
+// How wide the red 1 is on screen right now, given the strip width W in pixels.
+function unitSize(level, W) {
+  if (level === 0) return 'fills the strip';
+  const px = W / 10 ** level;
+  if (px >= 1) return `${round1(px)} pixels wide`;
+  return `1/${fmt(Math.round(1 / px))} of a pixel`;
+}
+
+
+// ----------------------------------------------------------------------
+// UPDATE THE TEXT READOUT (the big number and the facts)
+// Called whenever the level changes.
+// ----------------------------------------------------------------------
+function updateReadout() {
+  const L = S.level;
+  const n = 10 ** L;
+  $('big').textContent = fmt(n);
+
+  // Name, plus "= 10 × previous name" underneath (for every level except 0).
+  const name = NAMES[L];
+  const note = NOTES[L];
+  let sub = L > 0 ? `= 10 × ${NAMES[L - 1]}` : 'Our starting block';
+  if (note) sub += ` (${note})`;
+  $('name').innerHTML = `${name}<small>${sub}</small>`;
+
+  $('power').textContent  = '10' + SUP[L];
+  $('size').textContent   = unitSize(L, stripWidth());
+
+  // Turn off buttons that can't be used at the ends.
+  $('zoomIn').disabled  = L === 0;
+  $('reset').disabled   = L === 0;
+  $('zoomOut').disabled = L === SETTINGS.maxLevel;
+}
+
+
+// ----------------------------------------------------------------------
+// DRAWING THE STRIP ON THE CANVAS
+//
+// The key number is u: how many pixels wide ONE block ("1") is.
+//     u = W / 10^z      (W = width of the strip in pixels)
+// At z = 0, the 1 fills the strip. At z = 1, it is a tenth. At z = 5, it
+// is 1/1,00,000 of the strip, far less than a pixel.
+//
+// Only two things are sized from u: the red 1, and the yellow highlight
+// ("everything we had before"). Those are what change during a zoom.
+//
+// The dividing lines NEVER move: the strip is always cut into a hundred
+// by light lines and into ten by bold lines. What changes is what each
+// piece is worth, and the number labels under the strip say that.
+// ----------------------------------------------------------------------
+const PAD = 28;  // space left and right of the strip, in pixels
+
+// Width of the strip in pixels (the canvas width minus the padding).
+const stripWidth = () => canvas.clientWidth - 2 * PAD;
+
+function draw() {
+  // 1. Match the canvas's drawing size to its size on screen.
+  //    Setting the width also wipes the canvas clean, ready for a fresh picture.
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w;
+  canvas.height = h;
+
+  // 2. Where the strip goes.
+  const x0 = PAD;                        // left edge
+  const W = w - 2 * PAD;                 // width
+  const top = 44;                        // leave room above for the "our red 1 is here" note
+  const H = Math.max(60, h - top - 56);  // height; leave room below for number labels
+  const z = S.z;
+  const u = W / 10 ** z;                 // width of one "1" in pixels (see above)
+
+  // 3. Fill the strip.
+  ctx.fillStyle = css('--cell');
+  ctx.fillRect(x0, top, W, H);
+
+  // 4. Highlight "everything we had before" in yellow.
+  //    At rest on level L, that is the first block (worth 10^(L-1)).
+  //    While zooming out from L to L+1, it is the old whole (10^L), shrinking to the left.
+  if (z > 0) {
+    const k = Math.ceil(z - 1e-6) - 1;   // which power of ten the highlight covers
+    ctx.fillStyle = css('--prev');
+    ctx.fillRect(x0, top, Math.min(W, 10 ** k * u), H);
+  }
+
+  // 5. Dividing lines. ALWAYS the same, whatever the zoom:
+  //    99 light lines cut the strip into a hundred pieces,
+  //    then 9 bold lines on top cut it into ten.
+  //    lines(parts) draws the lines that cut the strip into "parts" equal pieces.
+  function lines(parts) {
+    ctx.beginPath();
+    for (let i = 1; i < parts; i++) {           // Python: for i in range(1, parts):
+      const x = x0 + i * W / parts;             // how far along this line is
+      ctx.moveTo(x, top);                       // pen to the top of the strip...
+      ctx.lineTo(x, top + H);                   // ...and a line straight down
+    }
+    ctx.stroke();                               // ink them all
+  }
+  ctx.strokeStyle = css('--tick');
+  ctx.lineWidth = 1;  ctx.globalAlpha = 0.25;  lines(100);   // light and faint
+  ctx.lineWidth = 3;  ctx.globalAlpha = 1;     lines(10);    // bold and solid
+
+  // 6. The red "1": one rectangle, u pixels wide.
+  //    It gets ten times thinner with every zoom. After three or four zooms it is
+  //    thinner than a pixel, and the screen simply cannot show it any more.
+  ctx.fillStyle = css('--unit');
+  ctx.fillRect(x0, top, Math.min(u, W), H);
+
+  //    Once it is thinner than 2 pixels, write a note above the strip so the class
+  //    knows where it went. The ▼ sits over the strip's left edge, where the 1 is.
+  if (u < 2) {
+    ctx.font = `700 17px ${css('--body')}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('▼ Our red 1 is here, now too thin to see', x0 - 7, top - 6);
+  }
+
+  // 7. Outline around the strip.
+  ctx.strokeStyle = css('--ink');
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x0, top, W, H);
+
+  // 8. Number labels under the bold lines: 0, one tenth of the whole, two tenths ... the whole.
+  //    Hidden while a zoom is being drawn, because the numbers are changing meaning then.
+  if (!S.busy) {
+    const whole = 10 ** S.level;                 // what the whole strip is worth
+    ctx.fillStyle = css('--ink');
+    ctx.font = `700 16px ${css('--body')}`;
+    ctx.textBaseline = 'top';
+
+    // If the numbers are too long to sit side by side, label every 2nd or every 5th bold line.
+    const room = ctx.measureText(fmt(whole)).width * 1.5 + 10;   // space one label needs
+    const step = room <= W / 10 ? 1 : room <= W / 5 ? 2 : 5;
+
+    for (let j = 0; j <= 10; j += step) {
+      // The two end labels are pulled inwards so they don't run off the canvas.
+      ctx.textAlign = j === 0 ? 'left' : j === 10 ? 'right' : 'center';
+      ctx.fillText(fmt(j * whole / 10), x0 + j * W / 10, top + H + 10);
+    }
+  }
+}
+
+
+// ----------------------------------------------------------------------
+// ANIMATION: slide S.z from where it is to a target level
+//
+// Nothing on the canvas really moves. We redraw the whole strip many
+// times, each time with z a little closer to the target, and pause
+// briefly after each drawing. The eye joins the pictures into a slide,
+// like a flip-book.
+// ----------------------------------------------------------------------
+
+// "Ease in-out": turns steady progress t (0 to 1) into progress that starts
+// slowly, speeds up in the middle and slows down at the end.
+const ease = t => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+
+// "async" lets the function pause with "await" without freezing the page.
+async function animateTo(target) {
+  const from = S.z;
+  S.busy = true;                               // ignore clicks until we finish
+  for (let i = 1; i <= SETTINGS.zoomSteps; i++) {
+    const t = i / SETTINGS.zoomSteps;          // how far along we are: 0.01, 0.02 ... 1
+    S.z = from + (target - from) * ease(t);
+    draw();
+    await wait(SETTINGS.stepTime);
+  }
+  S.busy = false;
+  draw();                                      // once more, now with the new labels
+}
+
+// Go to a level (one zoom out, one zoom in, or back to 0), within the limits.
+function goTo(level) {
+  if (S.busy) return;    // a zoom is still being drawn
+  level = Math.max(0, Math.min(SETTINGS.maxLevel, level));
+  if (level === S.level) return;
+  S.level = level;
+  updateReadout();       // the text changes straight away
+  animateTo(level);      // the picture catches up in small steps
+}
+
+
+// ----------------------------------------------------------------------
+// BUTTONS AND KEYS
+// ----------------------------------------------------------------------
+$('zoomOut').onclick = () => goTo(S.level + 1);
+$('zoomIn').onclick  = () => goTo(S.level - 1);
+$('reset').onclick   = () => goTo(0);
+
+// Arrow keys. e.key tells us which key was pressed.
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === '+') goTo(S.level + 1);
+  if (e.key === 'ArrowLeft'  || e.key === '-') goTo(S.level - 1);
+});
+
+// Redraw when the canvas changes size (window resized, phone rotated).
+// ResizeObserver calls our function whenever the watched element's size changes.
+new ResizeObserver(() => { draw(); updateReadout(); }).observe(canvas);
+
+// Redraw when the device switches between light and dark mode, so the canvas colours follow.
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+
+
+// ----------------------------------------------------------------------
+// START
+// ----------------------------------------------------------------------
+updateReadout();
+draw();
+// Fonts load a moment after the page; redraw once they arrive so canvas text uses them.
+document.fonts && document.fonts.ready.then(draw);
+</script>
+
+</body>
+</html>

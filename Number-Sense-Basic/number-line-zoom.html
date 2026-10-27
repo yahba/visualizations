@@ -1,0 +1,791 @@
+<!doctype html>
+<!--
+  ======================================================================
+  NUMBER LINE ZOOM
+  Math Explorer Club, The Break and Build Lab (BBL)
+
+  What it teaches: every digit of a number is a CHOICE of one step out
+  of ten on the number line.
+    - Type a number, e.g. 3245, and press "Place it".
+    - The line starts at 0 to 10,000, marked in thousands. The thousands
+      digit (3) tells us which of the 10 steps the number is in.
+    - That step (3,000 to 4,000) is highlighted. "Zoom in" makes that
+      one step grow until it fills the whole line, now marked in
+      hundreds. The hundreds digit (2) picks the next step. And so on.
+    - At the ones level the number lands EXACTLY on a mark.
+    - "Zoom out" goes back up. Watching the step shrink back into one
+      tenth of the line is the "x10" idea from the old zoom strip.
+
+  PREDICT, THEN REVEAL:
+    - At every level the line first appears WITHOUT the answer: only
+      the ticks and their labels. The teacher asks "Where will 3245 be?
+      Which step?" and the kids call out a guess.
+    - "Reveal" then fades in the orange step and the red pin.
+    - Zoom in only works after a reveal (we zoom INTO the revealed step),
+      and the new level starts hidden again, ready for the next guess.
+    - Turn this off with askBeforeReveal: false in SETTINGS.
+
+  How this file is organised (read it top to bottom):
+    1. <title>, fonts and <style> : CSS, which controls how things LOOK
+    2. HTML                        : WHAT is on the page
+    3. <script>                    : JavaScript, how it BEHAVES
+
+  New ideas in this file (compared with the earlier tools):
+    - Mapping numbers to pixels: the function X(v) turns a number on the
+      line into a horizontal position on the screen.
+    - A smooth zoom about a FIXED POINT: during the animation one spot
+      on the line stays still while everything stretches around it,
+      the way a map app zooms. See animateTo() in the script.
+    - Fading tick marks in and out with ctx.globalAlpha (transparency).
+  ======================================================================
+-->
+<html lang="en">
+<head>
+  <!-- Tells the browser the text uses the standard character set (so × − ✓ etc. display correctly). -->
+  <meta charset="utf-8">
+
+  <!-- Makes the page fit phone screens properly instead of showing a tiny zoomed-out desktop page. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+
+<!-- The name shown on the browser tab. -->
+<title>Number Line Zoom</title>
+
+<!-- Same two fonts as the Exchange Machine, so the tools look like one family. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Baloo+2:wght@500;700;800&display=swap">
+
+<style>
+  /* ==================================================================
+     PART 1: CSS (how things look)
+     ================================================================== */
+
+  /* ------------------------------------------------------------------
+     COLOUR AND FONT SETTINGS  <- the easiest place to change the look
+     The canvas drawing READS these colours too (see css() in the
+     script), so changing a colour here also changes the number line.
+     ------------------------------------------------------------------ */
+  :root {
+    --bg:        #fbf8f1;   /* page background (warm paper) */
+    --card:      #ffffff;   /* background of the panels */
+    --ink:       #1f2a37;   /* main text */
+    --muted:     #6b7280;   /* softer text */
+    --line:      #1f2a37;   /* the number line itself */
+    --tick:      #374151;   /* tick marks */
+    --accent:    #d64545;   /* the red pin that marks OUR number */
+    --band:      #e8a317;   /* thick stroke on the highlighted 1/10 step */
+    --band-soft: rgba(244, 183, 64, 0.22);  /* light tint around that step */
+    --band-ink:  #9a6a00;   /* text label under the step */
+    --decided:   #2a9d8f;   /* digits already used up */
+    --unknown:   #cbd5e1;   /* digits not used yet */
+    --btn:       #1f2a37;   /* main button colour */
+    --btn-ink:   #ffffff;   /* text on main buttons */
+  }
+
+  /* Dark mode: the same names with darker values.
+     The first block follows the device setting, unless the page has
+     been forced to light. The second block applies if forced to dark. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12161c; --card: #1b2129; --ink: #e8ecf1; --muted: #9aa4b2;
+      --line: #e8ecf1; --tick: #c3cad4; --accent: #ff6b6b;
+      --band: #f4b740; --band-soft: rgba(244, 183, 64, 0.18); --band-ink: #f4c76a;
+      --decided: #4cc9b8; --unknown: #3b4552; --btn: #e8ecf1; --btn-ink: #12161c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12161c; --card: #1b2129; --ink: #e8ecf1; --muted: #9aa4b2;
+    --line: #e8ecf1; --tick: #c3cad4; --accent: #ff6b6b;
+    --band: #f4b740; --band-soft: rgba(244, 183, 64, 0.18); --band-ink: #f4c76a;
+    --decided: #4cc9b8; --unknown: #3b4552; --btn: #e8ecf1; --btn-ink: #12161c;
+  }
+
+  /* ------------------------------------------------------------------
+     PAGE LAYOUT
+     ------------------------------------------------------------------ */
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Atkinson Hyperlegible', sans-serif;
+    font-size: 18px;            /* big, because it is projected */
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
+
+  h1 { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 2rem; margin: 4px 0 0; }
+  .sub { color: var(--muted); margin: 0 0 16px; }
+
+  /* Every panel (entry box, digits, line, readout) gets a card look. */
+  section { background: var(--card); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
+
+  /* --- The row where you type the number --- */
+  .entry { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .entry input {
+    font: inherit; font-size: 1.4rem; width: 9em; padding: 6px 10px;
+    border: 2px solid var(--unknown); border-radius: 10px;
+    background: var(--bg); color: var(--ink);
+  }
+  .err { color: var(--accent); font-weight: 700; }
+
+  /* --- The digit boxes (3 2 4 5 with place names underneath) --- */
+  .digits { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .dg {
+    display: flex; flex-direction: column; align-items: center;
+    min-width: 54px; padding: 6px 4px; border-radius: 10px;
+    border: 3px solid var(--unknown);
+    transition: all 0.3s;                 /* smooth colour change */
+  }
+  .dg .d { font-family: 'Baloo 2', sans-serif; font-size: 2.2rem; font-weight: 800; line-height: 1.1; }
+  .dg .p { font-size: 0.8rem; color: var(--muted); }
+  .dg.unknown { opacity: 0.45; }                                      /* not used yet */
+  .dg.decided { border-color: var(--decided); color: var(--decided); } /* already used */
+  .dg.active  { border-color: var(--band); background: var(--band-soft); transform: scale(1.12); } /* used NOW */
+  /* Before the reveal: a dashed outline hints "this digit decides" without showing the answer. */
+  .dg.asking  { border-color: var(--band); border-style: dashed; }
+
+  /* --- The canvas where the number line is drawn --- */
+  .stage { padding: 4px 0; }
+  canvas { display: block; width: 100%; height: 210px; }
+
+  /* --- The sentences that explain what we are looking at --- */
+  .readout { line-height: 1.6; }
+  .readout .hl { color: var(--band-ink); font-size: 1.2em; }
+
+  /* --- Buttons --- */
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; background: none; padding: 0; }
+  button {
+    font: inherit; font-weight: 700; padding: 10px 18px; border-radius: 12px;
+    border: 2px solid var(--btn); background: var(--card); color: var(--ink); cursor: pointer;
+  }
+  button.primary { background: var(--btn); color: var(--btn-ink); }
+  button:disabled { opacity: 0.35; cursor: default; }
+
+  .hint { color: var(--muted); font-size: 0.9rem; text-align: center; }
+
+  /* On a phone, shrink things a little. */
+  @media (max-width: 600px) {
+    body { font-size: 16px; }
+    .dg { min-width: 40px; }
+    .dg .d { font-size: 1.6rem; }
+  }
+</style>
+</body>
+</html>
+
+
+<!-- ====================================================================
+     PART 2: HTML (what is on the page)
+     ==================================================================== -->
+<div class="wrap">
+  <header>
+    <h1>Number Line Zoom</h1>
+    <p class="sub">Type a number. Watch each digit pick one step out of ten.</p>
+  </header>
+
+  <main>
+    <!-- Where you type the number. inputmode="numeric" brings up a number keypad on phones. -->
+    <section class="entry">
+      <label for="num"><b>Number:</b></label>
+      <input id="num" type="text" inputmode="numeric" autocomplete="off">
+      <button id="place" class="primary">Place it</button>
+      <span id="err" class="err"></span>
+    </section>
+
+    <!-- The script fills this with one box per digit. -->
+    <section class="digits" id="digits"></section>
+
+    <!-- The script draws the number line here. -->
+    <section class="stage">
+      <canvas id="line" aria-label="A number line showing where the number sits"></canvas>
+    </section>
+
+    <!-- The script writes the explanation sentences here. -->
+    <section class="readout" id="readout"></section>
+
+    <!-- Buttons. Keyboard also works: R or Space reveals, down arrow zooms in, up arrow zooms out. -->
+    <section class="controls">
+      <button id="zoomOut">− Zoom out (×10)</button>
+      <button id="reveal" class="primary">Reveal</button>
+      <button id="zoomIn" class="primary">Zoom in (÷10) +</button>
+      <button id="reset">Back to the top</button>
+    </section>
+
+    <p class="hint">
+      Ask first, then press <b>Reveal</b>.
+      Digit colours: <b>orange</b> = the digit we are using now (dashed before the reveal), <b>green</b> = already used, faded = not yet.
+      The <b>orange step</b> on the line is the one that grows when you zoom in.
+      Keyboard: <b>R</b> or <b>Space</b> reveal, <b>↓</b> zoom in, <b>↑</b> zoom out.
+    </p>
+  </main>
+</div>
+
+
+<script>
+// ======================================================================
+// PART 3: JAVASCRIPT (how it behaves)
+//
+// Same pattern as the Exchange Machine:
+//     a click -> change the STATE -> redraw the screen from the state
+//
+// The state (S) holds:
+//   S.n         : our number, e.g. 3245
+//   S.level     : which place we are looking at. 0 = ones, 1 = tens,
+//                 2 = hundreds, 3 = thousands ...
+//                 At level L the line shows 10 steps, each 10^L long.
+//   S.topLevel  : the level we start at for this number
+//   S.viewLeft  : the number at the LEFT end of the line right now
+//   S.viewWidth : how much of the number line is visible right now
+//                 (during an animation these slide smoothly)
+//   S.anim      : details of an animation in progress, or null
+//   S.revealed  : has the answer at THIS level been revealed yet?
+//   S.revealAlpha : how visible the answer (pin + this level's step) is,
+//                 from 0 (hidden) to 1 (fully shown). It slides
+//                 smoothly so the answer fades in and out.
+// ======================================================================
+
+
+// ----------------------------------------------------------------------
+// SETTINGS  <- the easiest place to change how it behaves
+// ----------------------------------------------------------------------
+const SETTINGS = {
+  // The number shown when the page first opens.
+  startNumber: 3245,
+
+  // true : start ONE level higher, so the first digit is also a choice
+  //        (3245 starts on 0 to 10,000).
+  // false: start where the first digit is already decided
+  //        (3245 starts on 3,000 to 4,000).
+  startOneHigher: true,
+
+  // Longest number allowed. 9 digits = up to 99,99,99,999.
+  maxDigits: 9,
+
+  // Seconds one zoom takes. Bigger = slower, good for a first viewing.
+  zoomTime: 1.2,
+
+  // Show "between 324 tens and 325 tens" under the highlighted step?
+  showUnitsLabel: true,
+
+  // true : each level starts hidden, so kids can guess; press Reveal.
+  // false: the answer shows straight away (no guessing round).
+  askBeforeReveal: true,
+
+  // Seconds the Reveal fade-in takes.
+  revealTime: 0.6,
+
+  // true : before the reveal, the deciding digit gets a dashed outline
+  //        (a hint: "which digit tells us?"). false: no hint.
+  hintDigit: true,
+};
+
+
+// ----------------------------------------------------------------------
+// NAMES FOR EACH PLACE (Indian system)
+// PLACE[3] is the thousands place, and so on.
+//   one   : the name for ONE of them   ("1 thousand")
+//   many  : the name for several       ("3 thousands")
+//   short : the label under the digit box
+// ----------------------------------------------------------------------
+const PLACE = [
+  { one: 'one',          many: 'ones',          short: 'O'   },
+  { one: 'ten',          many: 'tens',          short: 'T'   },
+  { one: 'hundred',      many: 'hundreds',      short: 'H'   },
+  { one: 'thousand',     many: 'thousands',     short: 'Th'  },
+  { one: 'ten thousand', many: 'ten thousands', short: 'TTh' },
+  { one: 'lakh',         many: 'lakhs',         short: 'L'   },
+  { one: 'ten lakh',     many: 'ten lakhs',     short: 'TL'  },
+  { one: 'crore',        many: 'crores',        short: 'Cr'  },
+  { one: 'ten crore',    many: 'ten crores',    short: 'TCr' },
+];
+
+
+// ----------------------------------------------------------------------
+// SMALL HELPERS
+// ----------------------------------------------------------------------
+
+// Shortcut for finding an element by its id (same helper as before).
+const $ = id => document.getElementById(id);
+
+// 10 to the power k. pow10(3) = 1000.
+const pow10 = k => Math.pow(10, k);
+
+// Write a number with Indian commas: 3245000 -> "32,45,000".
+const fmt = x => x.toLocaleString('en-IN');
+
+// "324 tens", "1 thousand", "0 hundreds" ...
+function countOf(count, L) {
+  return fmt(count) + ' ' + (count === 1 ? PLACE[L].one : PLACE[L].many);
+}
+
+// Read a colour from the CSS settings at the top, so the canvas
+// uses the same colours as the rest of the page (and dark mode works).
+function css(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+// Which part of the number line do we show at level L?
+// At level L the line is 10 steps of size 10^L, so it is 10^(L+1) long.
+// It starts at the multiple of 10^(L+1) just below our number.
+//   n = 3245, L = 3: width 10,000, starts at 0      -> 0 to 10,000
+//   n = 3245, L = 2: width  1,000, starts at 3,000  -> 3,000 to 4,000
+//   n = 3245, L = 1: width    100, starts at 3,200  -> 3,200 to 3,300
+function viewFor(n, L) {
+  const width = pow10(L + 1);
+  return { left: Math.floor(n / width) * width, width: width };
+}
+
+
+// ----------------------------------------------------------------------
+// THE STATE
+// ----------------------------------------------------------------------
+const S = {
+  n: 0, level: 0, topLevel: 0,
+  viewLeft: 0, viewWidth: 10,
+  anim: null,
+  revealed: false, revealAlpha: 0,
+};
+
+
+// ----------------------------------------------------------------------
+// CANVAS SET-UP
+// devicePixelRatio: phones and good laptops have extra-dense screens.
+// We make the canvas that many times bigger inside, then scale the
+// drawing, so lines stay sharp. (Same trick as the zoom strip.)
+// ----------------------------------------------------------------------
+const canvas = $('line');
+const ctx = canvas.getContext('2d');
+let dpr = window.devicePixelRatio || 1;
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  canvas.width  = canvas.clientWidth  * dpr;
+  canvas.height = canvas.clientHeight * dpr;
+  draw();
+}
+window.addEventListener('resize', resize);
+
+
+// ----------------------------------------------------------------------
+// PLACING A NEW NUMBER
+// ----------------------------------------------------------------------
+function placeNumber(text) {
+  // Allow people to type commas or spaces ("3,245"): remove them first.
+  const clean = String(text).replace(/[,\s]/g, '');
+
+  // Only digits allowed, and not too many.
+  if (!/^\d+$/.test(clean)) { $('err').textContent = 'Please type a whole number.'; return; }
+  const n = parseInt(clean, 10);                 // "0450" becomes 450
+  if (String(n).length > SETTINGS.maxDigits) {
+    $('err').textContent = 'Too long! Up to ' + SETTINGS.maxDigits + ' digits.'; return;
+  }
+  $('err').textContent = '';
+
+  // How many digits? 3245 has 4.
+  const digits = String(n).length;
+
+  // Start level: one above the first digit (so 3245 starts at thousands,
+  // showing 0 to 10,000), or the first digit already decided.
+  S.topLevel = SETTINGS.startOneHigher ? digits - 1 : Math.max(0, digits - 2);
+
+  S.n = n;
+  S.level = S.topLevel;
+  S.anim = null;
+
+  // A new number starts hidden (if we are playing "guess first").
+  S.revealed = !SETTINGS.askBeforeReveal;
+  S.revealAlpha = S.revealed ? 1 : 0;
+  const v = viewFor(n, S.level);
+  S.viewLeft = v.left;
+  S.viewWidth = v.width;
+
+  $('num').value = fmt(n);
+  updateText();
+  draw();
+}
+
+
+// ----------------------------------------------------------------------
+// THE ZOOM ANIMATION
+//
+// We want the highlighted step to GROW smoothly until it fills the line.
+// Trick: find the one number p that is at the SAME place on the screen
+// before and after the zoom. Keep p still, and stretch everything
+// around it. That is how a map zooms.
+//
+// If the old view is (L0, W0) and the new view is (L1, W1), p is where
+//     (p - L0) / W0  =  (p - L1) / W1
+// (the same fraction of the way along the line in both views), so
+//     p = (L1*W0 - L0*W1) / (W0 - W1)
+//
+// The width changes by multiplying (10 times smaller), not by adding,
+// so we slide it with a POWER: W = W0 * (W1/W0)^t, for t from 0 to 1.
+// That makes every moment of the zoom feel equally fast.
+// ----------------------------------------------------------------------
+function animateTo(newLevel) {
+  if (S.anim || newLevel === S.level) return;    // already moving, or nowhere to go
+
+  const v0 = { left: S.viewLeft, width: S.viewWidth };
+  const v1 = viewFor(S.n, newLevel);
+  const p = (v1.left * v0.width - v0.left * v1.width) / (v0.width - v1.width);
+
+  const zoomingIn = newLevel < S.level;
+  S.anim = { v0, v1, p, newLevel, zoomingIn, t0: performance.now() };
+
+  // Switch to the new level straight away, so draw() knows which step
+  // is "the answer we are hiding" during the animation.
+  S.level = newLevel;
+
+  if (zoomingIn) {
+    // Going down a level: the new level's answer is not known yet.
+    // revealAlpha fades from 1 to 0 in step(), so the old pin fades away.
+    S.revealed = !SETTINGS.askBeforeReveal;
+  } else {
+    // Going back up: we have seen these levels already, so show them.
+    S.revealed = true;
+    S.revealAlpha = 1;
+  }
+
+  updateButtons();
+  requestAnimationFrame(step);
+}
+
+// Runs once per screen refresh while the zoom is happening.
+function step(now) {
+  const A = S.anim;
+  let t = (now - A.t0) / (SETTINGS.zoomTime * 1000);   // 0 at start, 1 at end
+  if (t > 1) t = 1;
+  const e = t * t * (3 - 2 * t);                        // "ease": start slow, end slow
+
+  S.viewWidth = A.v0.width * Math.pow(A.v1.width / A.v0.width, e);
+  S.viewLeft  = A.p - (A.p - A.v0.left) * S.viewWidth / A.v0.width;
+
+  // When zooming in to a hidden level, fade the pin out during the
+  // first third of the zoom (so it can't give the answer away).
+  if (A.zoomingIn && !S.revealed) S.revealAlpha = Math.max(0, 1 - e * 3);
+
+  draw();
+
+  if (t < 1) {
+    requestAnimationFrame(step);                        // keep going
+  } else {
+    // Finished: snap exactly to the new view (no rounding errors).
+    S.level = A.newLevel;
+    S.viewLeft = A.v1.left;
+    S.viewWidth = A.v1.width;
+    S.anim = null;
+    draw();
+    updateText();
+  }
+}
+
+
+// ----------------------------------------------------------------------
+// DRAWING THE NUMBER LINE
+// Everything is redrawn from scratch from the state, every time.
+// ----------------------------------------------------------------------
+function draw() {
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);   // draw in normal-sized units
+  ctx.clearRect(0, 0, cw, ch);
+
+  // --- Layout numbers (in pixels) ---
+  const padX = 48;                  // space at the ends for labels
+  const lineY = 118;                // height of the line on the canvas
+  const usable = cw - 2 * padX;     // how wide the line is
+
+  const left = S.viewLeft, width = S.viewWidth, right = left + width;
+
+  // X(v): turn a number v into a horizontal pixel position.
+  // The left end of the view goes to padX, the right end to cw - padX.
+  const X = v => padX + (v - left) / width * usable;
+
+  // --- Which tick marks to draw? ---
+  // When the view is 10^(L+1) wide we are at level L, with steps of 10^L.
+  // During an animation the width is in between, so "lv" is a fraction
+  // like 2.4. k is the level of the big ticks; the next-smaller ticks
+  // fade in as we zoom in (fadeIn goes from 0 to 1).
+  const lv = Math.log10(width) - 1;
+  const k = Math.ceil(lv - 1e-9);                          // tiny 1e-9 avoids rounding trouble
+  const fadeIn = Math.min(1, Math.max(0, k - lv));
+
+  // 1. The line itself.
+  ctx.strokeStyle = css('--line');
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(padX, lineY);
+  ctx.lineTo(cw - padX, lineY);
+  ctx.stroke();
+
+  // 2. The highlighted 1/10 step that contains our number.
+  //    The big-tick step fades out while the next one fades in.
+  //    No step at the ones level: there the number is a single point.
+  //    The step at the CURRENT level is the answer to "which step?",
+  //    so it is multiplied by revealAlpha (hidden until Reveal).
+  //    Steps at other levels were already seen, so they show normally.
+  const hide = L => (L === S.level ? S.revealAlpha : 1);
+  if (k >= 1)     drawStep(k, (1 - fadeIn) * hide(k));
+  if (k - 1 >= 1) drawStep(k - 1, fadeIn * hide(k - 1));
+
+  // 3. Tick marks: big ones (with labels), then small ones fading in.
+  drawTicks(k, 1, true);
+  if (k - 1 >= 0) drawTicks(k - 1, fadeIn, false);
+
+  // 4. The red pin for our number, drawn last so it sits on top.
+  drawPin();
+
+
+  // ---- Helper: the highlighted step at level L ----
+  function drawStep(L, alpha) {
+    if (alpha <= 0.01) return;                  // invisible, skip it
+    const s = pow10(L);
+    const a = Math.floor(S.n / s) * s;          // start of the step (e.g. 3,240)
+    const b = a + s;                            // end of the step   (e.g. 3,250)
+    const xa = Math.max(padX, X(a));            // keep inside the line
+    const xb = Math.min(cw - padX, X(b));
+    if (xb <= xa) return;
+
+    ctx.globalAlpha = alpha;                    // see-through while fading
+
+    // Light tinted band around the step...
+    ctx.fillStyle = css('--band-soft');
+    ctx.fillRect(xa, lineY - 30, xb - xa, 60);
+
+    // ...and a thick coloured stroke on the line itself.
+    ctx.strokeStyle = css('--band');
+    ctx.lineWidth = 9;
+    ctx.lineCap = 'butt';
+    ctx.beginPath();
+    ctx.moveTo(xa, lineY);
+    ctx.lineTo(xb, lineY);
+    ctx.stroke();
+
+    // Label underneath: "between 324 tens and 325 tens".
+    if (SETTINGS.showUnitsLabel && alpha > 0.5) {
+      const text = 'between ' + countOf(a / s, L) + ' and ' + countOf(b / s, L);
+      ctx.font = "700 15px 'Atkinson Hyperlegible', sans-serif";
+      ctx.fillStyle = css('--band-ink');
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const tw = ctx.measureText(text).width;
+      // Centre it under the step, but don't let it fall off the edges.
+      let cx = (xa + xb) / 2;
+      cx = Math.max(tw / 2 + 4, Math.min(cw - tw / 2 - 4, cx));
+      ctx.fillText(text, cx, lineY + 72);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- Helper: tick marks every 10^L ----
+  function drawTicks(L, alpha, big) {
+    if (alpha <= 0.01) return;
+    const s = pow10(L);
+
+    // Tick number i is at the value i*s. Find the first and last visible.
+    // (Counting with whole numbers i avoids decimal rounding errors.)
+    const i0 = Math.ceil(left / s - 1e-9);
+    const i1 = Math.floor(right / s + 1e-9);
+
+    // Labels: if they would overlap, label only every 2nd, 5th or 10th.
+    ctx.font = (big ? "700 " : "400 ") + "14px 'Atkinson Hyperlegible', sans-serif";
+    const labelW = ctx.measureText(fmt(i1 * s)).width + 12;
+    const pxPerStep = s / width * usable;
+    let every = 10;
+    for (const e of [1, 2, 5, 10]) { if (pxPerStep * e >= labelW) { every = e; break; } }
+
+    // Small ticks only get labels once they are mostly faded in.
+    const labelAlpha = big ? 1 : Math.max(0, (alpha - 0.5) * 2);
+
+    for (let i = i0; i <= i1; i++) {
+      // Small ticks that sit under a big tick are already drawn: skip.
+      if (!big && i % 10 === 0) continue;
+      const v = i * s;
+      const x = X(v);
+      const h = big ? 14 : 8;                  // half-height of the tick
+
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = css('--tick');
+      ctx.lineWidth = big ? 2.5 : 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, lineY - h);
+      ctx.lineTo(x, lineY + h);
+      ctx.stroke();
+
+      if (labelAlpha > 0 && i % every === 0) {
+        ctx.globalAlpha = labelAlpha;
+        ctx.fillStyle = css('--ink');
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(fmt(v), x, lineY + 34);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- Helper: the red pin pointing at our number ----
+  function drawPin() {
+    const x = X(S.n);
+    if (x < -10 || x > cw + 10) return;          // off screen
+    if (S.revealAlpha <= 0.01) return;           // hidden: kids are still guessing
+    ctx.globalAlpha = S.revealAlpha;             // fades in on Reveal
+    const red = css('--accent');
+
+    // Stem
+    ctx.strokeStyle = red;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x, 48);
+    ctx.lineTo(x, lineY - 14);
+    ctx.stroke();
+
+    // Arrow head pointing down at the line
+    ctx.fillStyle = red;
+    ctx.beginPath();
+    ctx.moveTo(x, lineY - 3);
+    ctx.lineTo(x - 8, lineY - 17);
+    ctx.lineTo(x + 8, lineY - 17);
+    ctx.closePath();
+    ctx.fill();
+
+    // Dot exactly on the line
+    ctx.beginPath();
+    ctx.arc(x, lineY, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // The number, above the pin (kept inside the canvas)
+    const text = fmt(S.n);
+    ctx.font = "800 22px 'Baloo 2', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(text).width;
+    const cx = Math.max(tw / 2 + 4, Math.min(cw - tw / 2 - 4, x));
+    ctx.fillText(text, cx, 30);
+    ctx.globalAlpha = 1;                         // back to normal for the next drawing
+  }
+}
+
+
+// ----------------------------------------------------------------------
+// REVEAL: fade in the answer at the current level
+// Same idea as the zoom: a little animation loop that changes one
+// number (revealAlpha) from 0 to 1 and redraws each frame.
+// ----------------------------------------------------------------------
+function reveal() {
+  if (S.revealed || S.anim) return;
+  S.revealed = true;
+  const t0 = performance.now();
+  const start = S.revealAlpha;
+
+  function fade(now) {
+    let t = (now - t0) / (SETTINGS.revealTime * 1000);
+    if (t > 1) t = 1;
+    S.revealAlpha = start + (1 - start) * t;
+    draw();
+    if (t < 1) requestAnimationFrame(fade);
+  }
+  requestAnimationFrame(fade);
+  updateText();                                  // show the full explanation now
+}
+
+
+// ----------------------------------------------------------------------
+// THE DIGIT BOXES AND THE EXPLANATION
+// ----------------------------------------------------------------------
+function updateText() {
+  const L = S.level, n = S.n, s = pow10(L);
+
+  // --- Digit boxes ---
+  // For each digit, decide: already used (left of now), used NOW, or not yet.
+  const str = String(n);
+  let boxes = '';
+  for (let j = 0; j < str.length; j++) {
+    const p = str.length - 1 - j;                // place of this digit (0 = ones)
+    // The digit at THIS level is orange once revealed. Before that it is
+    // dashed (a hint), or looks like the rest if hintDigit is off.
+    let now = 'active';
+    if (!S.revealed) now = SETTINGS.hintDigit ? 'asking' : 'unknown';
+    const cls = p > L ? 'decided' : (p === L ? now : 'unknown');
+    boxes += '<div class="dg ' + cls + '"><span class="d">' + str[j] +
+             '</span><span class="p">' + PLACE[p].short + '</span></div>';
+  }
+  $('digits').innerHTML = boxes;
+
+  // --- Sentences ---
+  const d = Math.floor(n / s) % 10;              // the digit in place L
+  const a = Math.floor(n / s) * s;               // start of its step
+  const start = viewFor(n, L).left;              // left end of the line
+
+  let html = 'Looking at <b>' + PLACE[L].many + '</b>. Each step on the line is <b>' +
+             (L === 0 ? '1' : '1 ' + PLACE[L].one + '</b> (' + fmt(s) + ')') +
+             (L === 0 ? '</b>' : '') + '.<br>';
+
+  // Not revealed yet: only ask the question, don't give the answer away.
+  if (!S.revealed) {
+    html += '<b class="hl">Where will ' + fmt(n) + ' be?</b> ' +
+            (L === 0 ? 'Which mark does it land on?' : 'Which step is it in?') +
+            ' Make a guess, then press <b>Reveal</b>.';
+    $('readout').innerHTML = html;
+    updateButtons();
+    return;                                      // stop here; the rest is the answer
+  }
+
+  html += 'The ' + PLACE[L].many + ' digit is <b class="hl">' + d + '</b>, so count <b>' + d +
+          '</b> step' + (d === 1 ? '' : 's') + ' from ' + fmt(start) + '.<br>';
+
+  if (L > 0) {
+    html += fmt(n) + ' is between <b>' + fmt(a) + '</b> and <b>' + fmt(a + s) +
+            '</b>, that is, between <b>' + countOf(a / s, L) + '</b> and <b>' + countOf(a / s + 1, L) + '</b>.';
+    html += (n === a)
+      ? ' All the digits after this one are 0, so it sits right at the start of its step.'
+      : ' Zoom in to see where inside this step it is.';
+  } else {
+    html += fmt(n) + ' lands <b>exactly on a mark</b>. Every digit has been used, and the number is pinned down.';
+  }
+  $('readout').innerHTML = html;
+
+  updateButtons();
+}
+
+// Grey out buttons that can't be used right now.
+function updateButtons() {
+  const busy = !!S.anim;                         // true while animating
+  // Zoom in grows the REVEALED step, so it waits for a reveal first.
+  $('zoomIn').disabled  = busy || S.level === 0 || !S.revealed;
+  $('reveal').disabled  = busy || S.revealed;
+  $('zoomOut').disabled = busy || S.level === S.topLevel;
+  $('reset').disabled   = busy || S.level === S.topLevel;
+}
+
+
+// ----------------------------------------------------------------------
+// BUTTONS AND KEYBOARD
+// ----------------------------------------------------------------------
+$('place').addEventListener('click', () => placeNumber($('num').value));
+$('num').addEventListener('keydown', e => { if (e.key === 'Enter') placeNumber($('num').value); });
+
+$('reveal').addEventListener('click', reveal);
+$('zoomIn').addEventListener('click',  () => { if (S.level > 0 && S.revealed) animateTo(S.level - 1); });
+$('zoomOut').addEventListener('click', () => { if (S.level < S.topLevel) animateTo(S.level + 1); });
+$('reset').addEventListener('click',   () => animateTo(S.topLevel));   // zooms all the way out in one go
+
+document.addEventListener('keydown', e => {
+  if (document.activeElement === $('num')) return;   // typing in the box: leave arrows alone
+  if (e.key === 'r' || e.key === 'R' || e.key === ' ') { e.preventDefault(); reveal(); }
+  if (e.key === 'ArrowDown' && S.level > 0 && S.revealed) { e.preventDefault(); animateTo(S.level - 1); }
+  if (e.key === 'ArrowUp'   && S.level < S.topLevel) { e.preventDefault(); animateTo(S.level + 1); }
+});
+
+
+// ----------------------------------------------------------------------
+// START
+// Wait for the fonts, so the first drawing uses the right ones.
+// ----------------------------------------------------------------------
+document.fonts.ready.then(() => {
+  placeNumber(SETTINGS.startNumber);
+  resize();
+});
+</script>
+</body>
+</html>
+
