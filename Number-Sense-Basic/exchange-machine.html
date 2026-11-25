@@ -148,24 +148,47 @@
     /* aria-pressed="true" is set by the script on the selected button. */
     .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
     .btn { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; color: var(--ink); }
-    .set { display: inline-flex; gap: 6px; align-items: stretch; }
-    /* The number box: wide enough for 9,99,99,999 and in big, readable digits,
-       because the class reads it from the projector.
-       min(...) keeps it from getting wider than a phone screen. */
-    .set input { width: min(17rem, 70vw); font: 800 1.6rem var(--display); letter-spacing: .03em;
+    /* ------------------------------------------------------------------
+       INPUT ROW: where kids TYPE a number.
+       It has its own row (not hidden among the toggles), a clear label
+       above it, and a thick blue border so it looks like a place to type.
+       Classroom feedback: kids were clicking the big number display instead,
+       because it was bigger and more eye-catching than the old small box.
+       ------------------------------------------------------------------ */
+    .entry { display: flex; flex-direction: column; gap: 8px; }
+
+    /* The instruction above the box. <label> is linked to the box with for="setNum",
+       so clicking the words also puts the cursor in the box. */
+    .entry label { font: 700 clamp(1.1rem, 1.8vw, 1.4rem) var(--body); color: var(--ink); }
+
+    /* The box and the Show button side by side. flex-wrap lets Show drop below on a phone. */
+    .set { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+
+    /* The number box itself: big digits for the projector, wide enough for 9,99,99,999.
+       min(...) stops it getting wider than a phone screen. */
+    .set input { width: min(26rem, 100%); font: 800 clamp(2rem, 4vw, 2.8rem) var(--display); letter-spacing: .03em;
                  font-variant-numeric: tabular-nums;
-                 padding: .35rem .8rem; border: 2px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); }
-    /* The Show button next to it grows to the same height and gets slightly bigger text. */
-    .set .btn { font-size: 1.1rem; padding-inline: 1.1rem; }
+                 padding: .4rem 1rem; border: 3px solid var(--accent); border-radius: 14px;
+                 background: var(--surface); color: var(--ink); }
+    /* The grey hint text shown while the box is empty. */
+    .set input::placeholder { color: var(--muted); opacity: .6; font-weight: 500; }
+
+    /* The Show button: filled blue so it clearly belongs to the box next to it. */
+    .set .go { font: 800 clamp(1.3rem, 2.2vw, 1.7rem) var(--display); padding: 0 1.6rem; border-radius: 14px;
+               border: 0; background: var(--accent); color: var(--on-accent); cursor: pointer; }
 
     /* A clear outline when using the keyboard (Tab key) to move between buttons. */
     button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
     /* ------------------------------------------------------------------
        NUMBER DISPLAY: the big number, the number in words, the warning
+       This is OUTPUT only. It has no border and no white box, so it reads
+       as a result to look at, not a field to type in.
        ------------------------------------------------------------------ */
-    .readout { background: var(--surface); border: 1.5px solid var(--line); border-radius: 16px; padding: 14px 24px;
+    .readout { padding: 4px 4px 0;
                display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 32px; }
+    /* Small caption above the big number: "On the mat". flex-basis:100% puts it on its own line. */
+    .cap { flex-basis: 100%; font: 700 .85rem var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
     /* font-variant-numeric: tabular-nums makes every digit the same width, so numbers don't jiggle when they change. */
     .big   { font-family: var(--display); font-weight: 800; font-size: clamp(3rem, 7.5vw, 5.8rem); line-height: 1; font-variant-numeric: tabular-nums; }
     .words { font-size: clamp(1.1rem, 1.9vw, 1.6rem); color: var(--muted); min-width: 0; flex: 1 1 16rem; }
@@ -198,7 +221,6 @@
 
     .head { text-align: center; }
     .name { font-family: var(--display); font-weight: 700; font-size: clamp(1.05rem, 1.5vw, 1.4rem); line-height: 1.1; }
-    .val  { color: var(--muted); font-weight: 700; font-size: 1.05rem; }
 
     /* The tray holds two ten-frames (10 + 10 = 20 counters). */
     .tray { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border-radius: 10px; padding: 8px; }
@@ -281,25 +303,26 @@
           <button id="sysIntl" aria-pressed="false">International</button>
         </div>
 
-        <!-- Column label toggle: show each place's value (1,000) or its power of ten (10³). -->
-        <div class="seg" role="group" aria-label="Column label">
-          <button id="hdVal" aria-pressed="true">1,000</button>
-          <button id="hdPow" aria-pressed="false">10³</button>
-        </div>
-
-        <!-- Type a number to set up the mat. The script makes both the Show button and the Enter key work.
-             (A <form> would be the usual choice, but some page viewers block forms, so plain elements are safer.) -->
-        <div class="set">
-          <input id="setNum" inputmode="numeric" placeholder="e.g. 2,05,030" aria-label="Number to show">
-          <button class="btn" id="showBtn" type="button">Show</button>
-        </div>
-
         <button class="btn" id="clear">Clear</button>
       </div>
     </div>
 
-    <!-- NUMBER DISPLAY. aria-live="polite" makes screen readers announce changes. -->
+    <!-- INPUT ROW: the one place to type a number.
+         The script makes both the Show button and the Enter key work.
+         The number stays in the box after Show, so kids can compare what they typed
+         with the big number below (which adds commas and words).
+         (A <form> would be the usual choice, but some page viewers block forms, so plain elements are safer.) -->
+    <div class="entry">
+      <label for="setNum">✏️ Type a number here, then press Show</label>
+      <div class="set">
+        <input id="setNum" inputmode="numeric" placeholder="e.g. 2,05,030" autocomplete="off">
+        <button class="go" id="showBtn" type="button">Show</button>
+      </div>
+    </div>
+
+    <!-- NUMBER DISPLAY (output only). aria-live="polite" makes screen readers announce changes. -->
     <div class="readout" aria-live="polite">
+      <div class="cap">On the mat</div>
       <div class="big" id="big">0</div>
       <div class="words" id="words">Zero</div>
       <!-- "hidden" hides this until the script decides to show it. -->
@@ -388,9 +411,6 @@
     intl: [[0, 2, 'Ones'], [3, 5, 'Thousands'], [6, 7, 'Millions']],
   };
 
-  // Superscript digits, for writing 10⁰, 10¹, 10² ...  SUP[3] is '³'.
-  const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
-
 
   // ----------------------------------------------------------------------
   // STATE: everything that can change while the page is open
@@ -401,7 +421,6 @@
     counts:  [...SETTINGS.startCounts],  // counters in each place, ones first
     visible: SETTINGS.startPlaces,        // how many places are showing
     sys:     SETTINGS.startSystem,        // 'in' or 'intl'
-    head:    'value',                     // column label: 'value' (1,000) or 'power' (10³)
     busy:    false,                       // true while a slow bundle is running, to block extra clicks
   };
 
@@ -536,13 +555,11 @@
         slots += '</div>';
       }
 
-      // The small label under the name: 1,000  or  10³
-      const label = S.head === 'value' ? fmt(10 ** p) : '10' + SUP[p];
-
-      // Put the column together: heading, tray of slots, digit, - and + buttons, Bundle button.
+      // Put the column together: heading (just the place name: Ten, Hundred ...),
+      // tray of slots, digit, - and + buttons, Bundle button.
       html += `
         <div class="col${ready ? ' ready' : ''}" data-p="${p}" style="grid-column:${V - p}">
-          <div class="head"><div class="name">${name}</div><div class="val">${label}</div></div>
+          <div class="head"><div class="name">${name}</div></div>
           <div class="tray">${slots}</div>
           <div class="digit${c > 9 ? ' over' : ''}">${c}</div>
           <div class="ctrls">
@@ -569,8 +586,6 @@
     // 5. Mark which toggle buttons are selected (the CSS colours them blue).
     $('sysIn').setAttribute('aria-pressed', S.sys === 'in');
     $('sysIntl').setAttribute('aria-pressed', S.sys === 'intl');
-    $('hdVal').setAttribute('aria-pressed', S.head === 'value');
-    $('hdPow').setAttribute('aria-pressed', S.head === 'power');
   }
 
 
@@ -691,8 +706,6 @@
   // The number system can't change during a bundle, because the big number is not redrawn then.
   $('sysIn').onclick   = () => { if (S.busy) return; S.sys = 'in';   render(); };
   $('sysIntl').onclick = () => { if (S.busy) return; S.sys = 'intl'; render(); };
-  $('hdVal').onclick   = () => { S.head = 'value'; render(); };
-  $('hdPow').onclick   = () => { S.head = 'power'; render(); };
 
   // Remove all counters, and go back to the starting number of places.
   $('clear').onclick = () => {

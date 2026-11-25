@@ -15,6 +15,13 @@
   place is worth one of the next. The fewest clicks is the usual way we
   write the number.
 
+  Two modes (switch at the top):
+    FIND WAYS      : reach a target number; Chitti counts the clicks.
+    FORM A NUMBER  : the other way round. Type how many of each place
+                     (e.g. 34 hundreds, 98 tens, 61 ones) and work out the
+                     number. "Tidy up" then bundles it into standard form,
+                     one exchange per click, explaining each step.
+
   How this file is organised (read it top to bottom):
     1. <head>    : page settings, title, fonts
     2. <style>   : CSS, which controls how everything LOOKS
@@ -127,8 +134,18 @@
     .set { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-weight: 700; font-size: .9rem; }
     .set input { width: 8.5rem; font: 700 1rem var(--body); padding: .5rem .7rem; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); }
 
+    /* A "segmented" toggle for the two modes: buttons joined together, the chosen one filled blue.
+       aria-pressed="true" is set by the script on the chosen button. */
+    .seg { display: inline-flex; border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+    .seg button { border: 0; background: transparent; color: var(--muted); font: 700 .95rem var(--body); padding: .55rem .85rem; cursor: pointer; }
+    .seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+
     /* A clear outline when using the keyboard (Tab key) to move between buttons. */
     button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+    /* Anything with the "hidden" attribute disappears. (Needed because some of our own
+       rules, like display:flex, would otherwise beat the browser's built-in hiding.) */
+    [hidden] { display: none !important; }
 
     /* ------------------------------------------------------------------
        THE THREE BIG NUMBERS: target, what Chitti shows, clicks
@@ -196,6 +213,25 @@
     .ways .clicks { color: var(--muted); white-space: nowrap; }
 
     /* ------------------------------------------------------------------
+       FORM A NUMBER MODE: the working line, Tidy up, and the step message
+       ------------------------------------------------------------------ */
+
+    /* "3,400 + 980 + 61 = 4,441": each column's worth, added up. */
+    .sumline { font: 800 clamp(1.4rem, 2.6vw, 2.2rem)/1.2 var(--display); font-variant-numeric: tabular-nums; margin: 0; }
+
+    .tidyrow { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+    /* Tidy up uses the same green as Check, so it reads as "the main action" here. */
+    .tidy { font: 800 clamp(1.3rem, 2vw, 1.7rem)/1 var(--display); padding: .8rem 2rem .65rem; border-radius: 12px; border: 0;
+            background: var(--ready); color: var(--on-ready); cursor: pointer; }
+    .tidy:disabled { opacity: .4; cursor: default; }
+    /* The explanation of the last step, e.g. "61 ones = 6 tens and 1 one ...". */
+    .step { font: 700 clamp(1.1rem, 1.8vw, 1.5rem) var(--body); margin: 0; flex: 1 1 22rem; }
+
+    /* The two columns that took part in the last tidy-up step get a green outline,
+       so the class can see where the tens came from and where they went. */
+    .col.moved { box-shadow: 0 0 0 3px var(--ready); }
+
+    /* ------------------------------------------------------------------
        FOOTNOTE: where the idea comes from
        ------------------------------------------------------------------ */
     .source { color: var(--muted); font-size: .9rem; border-top: 1.5px solid var(--line); padding-top: 10px; margin-top: 12px; }
@@ -214,8 +250,15 @@
       <h1>Chitti's Calculator</h1>
       <div class="tools">
 
-        <!-- Type a new target number. The script makes both the Set button and the Enter key work. -->
-        <label class="set">Target
+        <!-- Mode switch. The script listens for clicks using the ids. -->
+        <div class="seg" role="group" aria-label="Mode">
+          <button id="modeFind" aria-pressed="true">Find ways</button>
+          <button id="modeForm" aria-pressed="false">Form a number</button>
+        </div>
+
+        <!-- Type a new target number (Find ways mode only).
+             The script makes both the Set button and the Enter key work. -->
+        <label class="set" id="targetSet">Target
           <input id="setNum" inputmode="numeric" placeholder="e.g. 5,072">
           <button class="btn" id="setBtn" type="button">Set</button>
         </label>
@@ -230,16 +273,26 @@
     <main>
       <!-- THE THREE BIG NUMBERS. aria-live="polite" makes screen readers announce changes. -->
       <section class="tiles" aria-live="polite">
-        <div class="tile target"><h2>Target</h2><div class="num" id="target"></div></div>
+        <!-- The Target and Clicks tiles have ids so the script can hide them in Form a number mode. -->
+        <div class="tile target" id="targetTile"><h2>Target</h2><div class="num" id="target"></div></div>
         <div class="tile"><h2>Chitti shows</h2><div class="num" id="total"></div></div>
-        <div class="tile"><h2>Clicks</h2><div class="num" id="clicks"></div></div>
+        <div class="tile" id="clicksTile"><h2>Clicks</h2><div class="num" id="clicks"></div></div>
       </section>
 
       <!-- THE MAT. Empty here: the script's buildMat() function makes the columns inside it. -->
       <section class="matscroll" aria-label="Chitti's buttons"><div class="mat" id="mat"></div></section>
 
-      <!-- CHECK: does what Chitti shows match the target? -->
-      <section class="checkrow">
+      <!-- FORM A NUMBER MODE ONLY: the working line, the Tidy up button and the step message. -->
+      <section id="formArea" hidden>
+        <p class="sumline" id="sumline"></p>
+        <div class="tidyrow">
+          <button class="tidy" id="tidyBtn">Tidy up</button>
+          <p class="step" id="step" role="status"></p>
+        </div>
+      </section>
+
+      <!-- CHECK: does what Chitti shows match the target? (Find ways mode only) -->
+      <section class="checkrow" id="checkArea">
         <button class="check" id="checkBtn">Check</button>
         <p class="result" id="result" role="status"></p>
       </section>
@@ -302,6 +355,11 @@
   const NAMES = ['One', 'Ten', 'Hundred', 'Thousand', 'Ten Thousand', 'Lakh', 'Ten Lakh'];
   const PLACES = NAMES.length;
 
+  // Lower-case names for the Tidy up messages: "1 ten" but "6 tens".
+  const ONE  = ['one', 'ten', 'hundred', 'thousand', 'ten thousand', 'lakh', 'ten lakh'];
+  const MANY = ['ones', 'tens', 'hundreds', 'thousands', 'ten thousands', 'lakhs', 'ten lakhs'];
+  const placeWord = (n, p) => `${fmt(n)} ${n === 1 ? ONE[p] : MANY[p]}`;
+
 
   // ----------------------------------------------------------------------
   // STATE: everything that can change while the page is open
@@ -312,6 +370,9 @@
     showTotal: SETTINGS.showTotal,         // is Chitti's display visible?
     ways:      [],                         // the correct ways found so far for this target
     result:    { kind: '', text: '' },     // the Check answer: kind is 'ok', 'no' or '' (nothing to show)
+    mode:      'find',                     // 'find' = Find ways, 'form' = Form a number
+    step:      '',                         // Form mode: the message explaining the last Tidy up step
+    moved:     [],                         // Form mode: the two places used in the last step (to outline them)
   };
 
 
@@ -383,7 +444,19 @@
   // This is the most important function. Every change calls it.
   // ----------------------------------------------------------------------
   function render() {
-    // 1. The three big numbers.
+    const form = S.mode === 'form';   // true in Form a number mode
+
+    // 0. Show only the parts that belong to the current mode.
+    //    Setting .hidden = true hides an element; false shows it.
+    $('targetSet').hidden  = form;    // no target in Form mode
+    $('targetTile').hidden = form;
+    $('clicksTile').hidden = form;    // clicks don't matter in Form mode
+    $('checkArea').hidden  = form;
+    $('formArea').hidden   = !form;
+    $('modeFind').setAttribute('aria-pressed', !form);
+    $('modeForm').setAttribute('aria-pressed', form);
+
+    // 1. The big numbers.
     $('target').textContent = fmt(S.target);
     $('total').textContent  = S.showTotal ? fmt(total()) : '?';
     $('clicks').textContent = fmt(clicks());
@@ -406,14 +479,33 @@
       // Grey out a button that can't do anything.
       column.querySelector('.press').disabled = c >= SETTINGS.maxPresses;
       column.querySelector('.undo').disabled  = c === 0;
+
+      // Form mode: outline the two columns used in the last Tidy up step.
+      // classList.toggle(name, true/false) adds or removes the class.
+      column.classList.toggle('moved', form && S.moved.includes(p));
+    }
+
+    // 2b. Form mode: the working line "3,400 + 980 + 61 = 4,441" and the step message.
+    if (form) {
+      // The worth of every place that has something, biggest place first.
+      const parts = [];
+      for (let p = PLACES - 1; p >= 0; p--) {
+        if (S.counts[p]) parts.push(fmt(S.counts[p] * placeValue(p)));
+      }
+      // Only shown with the total, otherwise it would give the answer away.
+      $('sumline').textContent = S.showTotal && parts.length ? `${parts.join(' + ')} = ${fmt(total())}` : '';
+      $('step').textContent = S.step ||
+        'Type how many of each place in the boxes. What number does Chitti make?';
+      // Nothing left to tidy (no place has 10 or more)? Grey out the button.
+      $('tidyBtn').disabled = nextToTidy() === -1;
     }
 
     // 3. The answer from the Check button. className sets the element's classes in one go.
     $('result').textContent = S.result.text;
     $('result').className = 'result ' + S.result.kind;
 
-    // 4. The list of ways found.
-    $('ways').hidden = S.ways.length === 0;
+    // 4. The list of ways found (Find ways mode only).
+    $('ways').hidden = form || S.ways.length === 0;
     $('waysTitle').textContent = `Ways to make ${fmt(S.target)}: ${S.ways.length} found`;
     // map() turns each way into a piece of HTML; join('') glues the pieces together.
     // Python version:  ''.join(f"<li>...</li>" for w in S.ways)
@@ -432,6 +524,8 @@
     // Math.min / Math.max squeeze n into the range 0 .. maxPresses.
     S.counts[p] = Math.max(0, Math.min(SETTINGS.maxPresses, n));
     S.result = { kind: '', text: '' };   // the old Check answer no longer applies
+    S.step = '';                         // the old Tidy up message no longer applies either
+    S.moved = [];
     render();
   }
 
@@ -499,6 +593,75 @@
 
 
   // ----------------------------------------------------------------------
+  // TIDY UP (Form a number mode): one fair exchange per click
+  //
+  // We always tidy the SMALLEST place first (the ones, then the tens ...),
+  // because tidying a place can make the place to its left grow past 9,
+  // e.g. 61 ones give 6 more tens, so 98 tens become 104 tens.
+  // The number Chitti shows NEVER changes: every step is a fair exchange.
+  // ----------------------------------------------------------------------
+
+  // Which place should be tidied next? The smallest place holding 10 or more.
+  // The biggest place is left out: Chitti has no button above it to move tens into.
+  // Returns -1 when there is nothing left to tidy.
+  function nextToTidy() {
+    for (let p = 0; p < PLACES - 1; p++) {
+      if (S.counts[p] >= 10) return p;
+    }
+    return -1;
+  }
+
+  function tidyStep() {
+    const p = nextToTidy();
+    if (p === -1) return;
+
+    const c     = S.counts[p];          // e.g. 61 ones
+    const carry = Math.floor(c / 10);   // how many of the next place they make: 6 tens
+    const keep  = c % 10;               // what stays behind: 1 one
+    const before = S.counts[p + 1];     // the next place before the exchange: 98 tens
+
+    // The exchange itself.
+    S.counts[p] = keep;
+    S.counts[p + 1] += carry;
+
+    // The message, in words and in values, e.g.
+    // "61 ones = 6 tens and 1 one (61 = 60 + 1). The 6 tens join the tens: 98 → 104 tens."
+    const v = placeValue(p);
+    S.step = `${placeWord(c, p)} = ${placeWord(carry, p + 1)} and ${placeWord(keep, p)} ` +
+             `(${fmt(c * v)} = ${fmt(carry * v * 10)} + ${fmt(keep * v)}). ` +
+             `The ${placeWord(carry, p + 1)} join the ${MANY[p + 1]}: ${fmt(before)} → ${fmt(S.counts[p + 1])}.`;
+
+    // Was that the last step? Then say we have reached the standard form.
+    if (nextToTidy() === -1) {
+      const n = S.showTotal ? ` ${fmt(total())}` : '';
+      S.step += ` All tidy! Every place now holds 0 to 9: the standard form${n}.`;
+    }
+
+    S.moved = [p, p + 1];   // outline these two columns
+    render();
+  }
+
+  $('tidyBtn').onclick = tidyStep;
+
+
+  // ----------------------------------------------------------------------
+  // MODE SWITCH
+  // Switching mode starts with empty columns, so the two activities don't mix.
+  // ----------------------------------------------------------------------
+  function setMode(m) {
+    if (S.mode === m) return;
+    S.mode = m;
+    S.counts.fill(0);
+    S.result = { kind: '', text: '' };
+    S.step = '';
+    S.moved = [];
+    render();
+  }
+  $('modeFind').onclick = () => setMode('find');
+  $('modeForm').onclick = () => setMode('form');
+
+
+  // ----------------------------------------------------------------------
   // TOP BAR BUTTONS
   // "element.onclick = function" sets what happens when it is clicked.
   // ----------------------------------------------------------------------
@@ -507,6 +670,8 @@
   $('clear').onclick = () => {
     S.counts.fill(0);
     S.result = { kind: '', text: '' };
+    S.step = '';
+    S.moved = [];
     render();
   };
 
