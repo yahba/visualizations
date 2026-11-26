@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<!--
+  =====================================================================
+  two-boxes.html  —  BBL Math Explorer Club
+  Operations module, Opening: + and − with beans in two boxes
+  =====================================================================
+
+  WHAT THIS TOOL SHOWS
+  --------------------
+  The very first picture of adding and taking away, before the number
+  line: discrete things (beans) moving one at a time.
+
+  Mode 1 "Move beans"
+    • Box A and Box B start with up to 20 beans each (e.g. 8 and 5).
+    • Arrow buttons move ONE bean from one box to the other. There is
+      deliberately no "pour all" button: each click is one +1 on one box
+      and one −1 on the other, and kids should feel every one.
+    • Every move: one box goes up by 1, the other goes down by 1.
+      Adding is repeated +1, taking away is repeated −1, in ONE action.
+    • The total never changes:  8 + 5 → 9 + 4 → 10 + 3 → … → 13 + 0
+    • Each box writes its own record:  Box A  8 + 5 = 13
+                                       Box B  5 − 5 = 0
+    • Pour the beans back and you are where you started: 13 − 5 = 8.
+    • Beans keep the colour of the box they started in, so after
+      pouring you can still see "8 of A's + 5 of B's" inside one box.
+
+  Mode 2 "Take away"
+    • Box A has 8. Take away 5: move beans out of A, one at a time,
+      into the "Taken out" box.
+    • "Take 1 out" switches itself off once 5 are out, so the process
+      stops by itself.
+    • At the end:  8 − 5 = 3, and the reverse is said straight away:
+      put them back, 3 + 5 = 8.
+    • What is left plus what was taken out is what you started with.
+
+  Mode 3 "Make them equal"   (the difference, by counting up)
+    • Box A has 12, Box B has 18. How many beans must go into A so that
+      it matches B?
+    • The beans come from a separate PILE, never from the other box.
+      (Moving beans from B to A makes the boxes meet in the middle
+      after only 3 moves, which is half the difference. So there are
+      no A ↔ B buttons in this mode.)
+    • When the boxes match:  12 + 6 = 18, so 18 − 12 = 6.
+    • Taking 6 from the bigger box back to the pile works too:
+      18 − 6 = 12. Same number of beans, same difference.
+
+  FILES
+  -----
+  Everything is inside this one file, so it can be shared on its own.
+  The "SHARED BBL STYLE" block in the <head> is identical in every BBL
+  Math tool; the "Styles used ONLY by this tool" block is just for this one.
+
+  HOW THE CODE IS ORGANISED (search for these headings)
+    1. SETTINGS          limits, colours, speeds
+    2. STATE             everything the tool remembers
+    3. DRAWING THE BOXES turning the state into beans on screen
+    4. ANIMATION         one bean hopping from one place to another
+    5. MOVE BEANS        what the Mode 1 buttons do (Take away uses them too)
+    6. MAKE THEM EQUAL   what the Mode 3 buttons do
+    7. READOUT/MESSAGES  the big equation, the chain and hints
+    8. WIRING            connecting buttons to functions, and start-up
+  =====================================================================
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- makes the page fit phone and tablet screens properly -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beans in Two Boxes</title>
+
+  <!-- =================================================================
+       SHARED BBL STYLE  (start)
+       This block is the same in every BBL Math tool. It is kept inside
+       each file so a tool can be shared as ONE file for feedback.
+       If you change it here, copy the same change into the other tools.
+       Later, this whole block can be moved out into a separate
+       bbl-math.css file and replaced by one line:
+           <link rel="stylesheet" href="bbl-math.css">
+       ================================================================= -->
+  <style>
+/* =====================================================================
+   SHARED LOOK for all BBL Math Explorer tools
+   =====================================================================
+
+   HOW THIS BLOCK IS USED
+   ----------------------
+   Every tool (number-line-jumps.html, exchange-add.html, ...) carries an
+   identical copy of this block. Change a colour or a text size here, then
+   copy the same change into the other tools so they all keep matching.
+
+   THE ONE SAFETY RULE
+   -------------------
+   Adding a new style here is always safe.
+   Renaming or deleting an existing style can break an older tool that
+   still uses the old name. After any rename/delete, open every tool once
+   and check it still looks right.
+
+   The file is in sections:
+     1. Colours and sizes (the "design tokens")
+     2. The page
+     3. Header
+     4. Panels and rows of controls
+     5. Buttons
+     6. Inputs and dropdowns
+     7. Tabs (switching between modes)
+     8. Readout (the big expression) and messages
+     9. Number line drawings (SVG) — shared by every number-line tool
+   ===================================================================== */
+
+
+/* ---------------------------------------------------------------------
+   1. COLOURS AND SIZES
+   ---------------------------------------------------------------------
+   ":root" means "the whole page". Anything written as --name: value;
+   is a VARIABLE. Elsewhere we use it as var(--name).
+   Keeping all colours here means we choose them once and reuse them.
+   The meaning of each colour stays the same across all tools, so kids
+   learn it: green always means "forward / adding", red "back / taking".
+   --------------------------------------------------------------------- */
+:root {
+  /* backgrounds */
+  --bg:        #fbf8f2;   /* warm off-white page: easier on a projector than pure white */
+  --panel:     #ffffff;   /* white cards that hold the controls */
+  --border:    #e4ddcf;   /* soft border around cards */
+
+  /* text */
+  --ink:       #1f2933;   /* main text: near-black */
+  --ink-soft:  #5b6670;   /* quieter text: hints, tick numbers */
+
+  /* meaning colours */
+  --accent:    #1f7a8c;   /* teal: main buttons, "you are here" marker */
+  --forward:   #2a9d4b;   /* green: moving forward, adding */
+  --back:      #d1495b;   /* red: moving back, taking away */
+  --highlight: #e07a1f;   /* orange: "notice this" — targets, leftovers */
+  --ghost:     #9aa5b1;   /* grey: "what would happen if..." */
+
+  /* drawing */
+  --line:      #2f3a45;   /* the number line and its ticks */
+
+  /* shape and type */
+  --radius:    12px;      /* how rounded the corners are */
+  --font: system-ui, "Segoe UI", Roboto, "Noto Sans", Arial, sans-serif;
+          /* system fonts only: the tools keep working with no internet */
+
+  /* BIG text sizes, because these tools are shown on a projector */
+  --fs-base:   20px;      /* ordinary text and buttons */
+  --fs-big:    30px;      /* the main readout (e.g. 38 + 25 = 63) */
+  --fs-title:  32px;      /* page title */
+}
+
+
+/* ---------------------------------------------------------------------
+   2. THE PAGE
+   --------------------------------------------------------------------- */
+
+/* "box-sizing: border-box" makes width/height include padding and
+   border. It makes layouts far less surprising, so we set it everywhere. */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  line-height: 1.4;
+}
+
+/* .bbl-page centres the tool and stops it getting too wide on a big screen */
+.bbl-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+}
+
+
+/* ---------------------------------------------------------------------
+   3. HEADER: tool title and a one-line subtitle
+   --------------------------------------------------------------------- */
+.bbl-header h1 {
+  margin: 0;
+  font-size: var(--fs-title);
+}
+.bbl-header p {
+  margin: 4px 0 16px;
+  color: var(--ink-soft);
+}
+
+
+/* ---------------------------------------------------------------------
+   4. PANELS AND ROWS
+   --------------------------------------------------------------------- */
+
+/* A white card that groups related controls */
+.bbl-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+/* A row of controls that wraps onto the next line on small screens.
+   "display: flex" lines children up side by side;
+   "flex-wrap: wrap" lets them wrap; "gap" puts space between them. */
+.bbl-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+}
+.bbl-row + .bbl-row { margin-top: 12px; }   /* space between stacked rows */
+
+/* Small grey label in front of an input, e.g. "Jump size" */
+.bbl-label {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+/* A thin vertical divider between groups inside a row */
+.bbl-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+
+/* ---------------------------------------------------------------------
+   5. BUTTONS
+   ---------------------------------------------------------------------
+   Use class="bbl-btn" for every button, then add ONE colour class:
+     bbl-btn primary   teal   (the main action)
+     bbl-btn forward   green  (add / move forward)
+     bbl-btn back      red    (take away / move back)
+     bbl-btn quiet     white  (undo, clear, less important)
+   --------------------------------------------------------------------- */
+.bbl-btn {
+  font: inherit;               /* use the page font, not the browser's */
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  color: #fff;
+  background: var(--accent);
+  transition: transform 0.05s, filter 0.15s;
+}
+.bbl-btn:hover   { filter: brightness(1.08); }
+.bbl-btn:active  { transform: translateY(1px); }   /* tiny "press" feel */
+
+.bbl-btn.primary { background: var(--accent); }
+.bbl-btn.forward { background: var(--forward); }
+.bbl-btn.back    { background: var(--back); }
+.bbl-btn.quiet {
+  background: #fff;
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+/* While an animation runs, the tool disables its buttons */
+.bbl-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+}
+
+
+/* ---------------------------------------------------------------------
+   6. INPUTS AND DROPDOWNS
+   --------------------------------------------------------------------- */
+.bbl-input,
+.bbl-select {
+  font: inherit;
+  font-size: var(--fs-base);
+  padding: 8px 10px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+}
+.bbl-input { width: 6.5em; text-align: center; font-weight: 700; }
+.bbl-input:focus,
+.bbl-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.bbl-input:disabled,
+.bbl-select:disabled { opacity: 0.5; }
+
+
+/* ---------------------------------------------------------------------
+   7. TABS: switching between modes of one tool
+   ---------------------------------------------------------------------
+   <div class="bbl-tabs">
+     <button class="bbl-tab active">Mode A</button>
+     <button class="bbl-tab">Mode B</button>
+   </div>
+   The tool's script moves the "active" class when a tab is clicked.
+   --------------------------------------------------------------------- */
+.bbl-tabs {
+  display: inline-flex;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;              /* keeps the inner corners rounded */
+}
+.bbl-tab {
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 16px;
+  border: none;
+  background: #fff;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.bbl-tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+.bbl-tab:disabled { cursor: not-allowed; opacity: 0.6; }
+
+
+/* ---------------------------------------------------------------------
+   8. READOUT AND MESSAGES
+   ---------------------------------------------------------------------
+   .bbl-readout  the big line kids read, e.g. "38 + 2 + 23 = 63"
+   .bbl-readout-sub   a smaller second line, e.g. "Same as 38 + 25"
+   .bbl-message  a hint or warning under the drawing
+   --------------------------------------------------------------------- */
+.bbl-readout {
+  font-size: var(--fs-big);
+  font-weight: 700;
+  min-height: 1.4em;             /* keeps the layout still when it is empty */
+  text-align: center;
+}
+.bbl-readout-sub {
+  font-size: var(--fs-base);
+  color: var(--ink-soft);
+  min-height: 1.4em;
+  text-align: center;
+}
+.bbl-message {
+  min-height: 1.4em;
+  margin: 8px 0 0;
+  text-align: center;
+  color: var(--ink-soft);
+}
+.bbl-message.warn { color: var(--back); font-weight: 600; }
+
+
+/* ---------------------------------------------------------------------
+   9. NUMBER LINE DRAWINGS (SVG)
+   ---------------------------------------------------------------------
+   SVG is the drawing language the tools use for the number line.
+   SVG shapes are styled with "stroke" (the outline colour), "fill"
+   (the inside colour) and "stroke-width" (outline thickness), instead
+   of the "color"/"background" used for ordinary page elements.
+   These classes are shared so every number-line tool looks the same.
+   --------------------------------------------------------------------- */
+
+/* The box the drawing sits in. The SVG stretches to the full width. */
+.bbl-stage {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+.bbl-stage svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* the line itself and its ticks */
+.nl-line        { stroke: var(--line); stroke-width: 3; stroke-linecap: round; }
+.nl-tick        { stroke: var(--line); stroke-width: 1.5; }
+.nl-tick-round  { stroke-width: 3; }          /* round numbers: thicker tick */
+.nl-tick-label  { font-size: 20px; fill: var(--ink-soft); text-anchor: middle; }
+
+/* "you are here" and "you started here" */
+.nl-marker      { fill: var(--accent); stroke: #fff; stroke-width: 3; }
+.nl-start       { fill: #fff; stroke: var(--accent); stroke-width: 4; }
+.nl-landing     { font-size: 20px; font-weight: 700; fill: var(--accent); text-anchor: middle; }
+
+/* jump arcs. "fill: none" because an arc is just an outline. */
+.nl-jump         { fill: none; stroke-width: 4; stroke-linecap: round; }
+.nl-jump.forward { stroke: var(--forward); }
+.nl-jump.back    { stroke: var(--back); }
+.nl-jump.ghost   { stroke: var(--ghost); stroke-dasharray: 8 8; }  /* dashed */
+
+/* the "+5" / "−17" written on top of each arc */
+.nl-jump-label         { font-size: 24px; font-weight: 700; text-anchor: middle; }
+.nl-jump-label.forward { fill: var(--forward); }
+.nl-jump-label.back    { fill: var(--back); }
+.nl-jump-label.ghost   { fill: var(--ghost); }
+
+/* arrowheads at the end of arcs (they sit inside <marker> elements) */
+.nl-arrow.forward { fill: var(--forward); }
+.nl-arrow.back    { fill: var(--back); }
+.nl-arrow.ghost   { fill: var(--ghost); }
+
+/* things to notice: a target and the leftover gap */
+.nl-target   { stroke: var(--highlight); stroke-width: 5; stroke-linecap: round; }
+.nl-leftover { fill: var(--highlight); opacity: 0.85; }
+.nl-note     { font-size: 20px; font-weight: 700; fill: var(--highlight); text-anchor: middle; }
+  </style>
+  <!-- ======================= SHARED BBL STYLE  (end) ================= -->
+
+  <!-- Styles used ONLY by this tool. Everything general is in the SHARED BBL STYLE block above -->
+  <style>
+    /* Only some controls are visible at a time.
+       The script adds/removes the "hidden" class. */
+    .hidden { display: none !important; }
+
+    /* ---------- the stage: Box A | middle column | Box B ---------- */
+    /* "flex" puts the three side by side; on a narrow screen they wrap */
+    .stage-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: stretch;
+      gap: 16px;
+    }
+
+    /* one box: a white card with a title, a big count, the tray of beans
+       and its own record ("8 + 5 = 13") underneath */
+    .box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      width: 380px;
+    }
+    .box-head {
+      display: flex;
+      justify-content: space-between;   /* name on the left, count on the right */
+      align-items: baseline;
+    }
+    .box-name  { font-size: 26px; font-weight: 700; }
+    .box-count { font-size: 48px; font-weight: 800; color: var(--accent); }
+
+    /* The tray holds up to 40 beans: 10 in a row, 4 rows.
+       Filling row by row means a full row is always 10 beans, which
+       quietly prepares the idea of a ten for later. */
+    .tray {
+      display: grid;
+      grid-template-columns: repeat(10, 26px);
+      grid-auto-rows: 20px;
+      gap: 10px 7px;
+      justify-content: center;
+      align-content: start;
+      min-height: 122px;            /* room for 4 rows even when empty */
+      padding: 10px 6px;
+      margin-top: 6px;
+      background: #f6f0e3;          /* a pale wooden tray */
+      border-radius: 10px;
+    }
+
+    /* the box's own record, e.g. "8 + 5 = 13" or "5 − 5 = 0" */
+    .box-record {
+      margin-top: 8px;
+      text-align: center;
+      font-size: 26px;
+      font-weight: 700;
+      min-height: 1.4em;
+    }
+    .box-record .plus  { color: var(--forward); }   /* green: went up */
+    .box-record .minus { color: var(--back); }      /* red: went down */
+
+    /* buttons under a box (Mode 2 only) */
+    .box-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    /* ---------- beans ---------- */
+    /* A bean is just a small oval: a box with fully rounded corners. */
+    .bean {
+      width: 26px;
+      height: 18px;
+      border-radius: 50%;
+      box-shadow: inset -3px -3px 0 rgba(0, 0, 0, 0.18);   /* a little shading */
+    }
+    .bean.a    { background: #8b3a2b; }           /* Box A's beans: rajma red-brown */
+    .bean.b    { background: #e2b44f; }           /* Box B's beans: chana yellow */
+    .bean.pile { background: var(--highlight); }  /* beans from the pile: orange, "notice this" */
+
+    /* A bean that has a place in the tray but hasn't landed yet:
+       it keeps its space but can't be seen until the hop finishes. */
+    .bean.arriving { visibility: hidden; }
+
+    /* the bean that hops across the screen during an animation */
+    .flyer {
+      position: fixed;             /* placed by screen position, above everything */
+      z-index: 10;
+      pointer-events: none;        /* clicks go through it */
+    }
+
+    /* ---------- the middle column ---------- */
+    .middle {
+      display: flex;
+      flex-direction: column;      /* stack the buttons top to bottom */
+      justify-content: center;
+      gap: 12px;
+      width: 230px;
+    }
+    .middle .bbl-btn { font-size: 22px; }
+    .middle-note { text-align: center; color: var(--ink-soft); font-size: 17px; }
+
+    /* (called pile-heap, not pile, because "pile" is already the
+       class of an orange bean)
+       the pile (Mode 2): a heap of orange beans drawn with absolute positions */
+    .pile-heap {
+      position: relative;
+      height: 120px;
+      margin: 0 auto;
+      width: 180px;
+    }
+    .pile-heap .bean { position: absolute; }
+    .pile-label { text-align: center; font-weight: 700; color: var(--highlight); }
+
+    /* ---------- readout ---------- */
+    #readoutArea { margin-top: 14px; }
+
+    /* the chain "8 + 5 → 9 + 4 → …", smaller so it can wrap */
+    .chain {
+      margin-top: 4px;
+      text-align: center;
+      font-size: 19px;
+      color: var(--ink-soft);
+      min-height: 1.4em;
+    }
+
+    /* the key idea: a pale teal band with bold words (same as the jumps tool) */
+    .key-idea {
+      margin: 12px auto 0;
+      max-width: 900px;
+      padding: 10px 16px;
+      border-radius: var(--radius);
+      background: #e6f2f4;
+      color: var(--ink);
+      font-size: 22px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    /* a small colour key under the boxes */
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 22px;
+      margin-top: 10px;
+      color: var(--ink-soft);
+      font-size: 17px;
+    }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+    /* the two number boxes in the top row are a little narrower than the
+       shared size, so the three tabs, both boxes and Set up fit on one line */
+    #startAInput, #startBInput { width: 4.5em; }
+
+    /* Take away: the result box at the end, with the subtraction and the
+       addition that undoes it, one under the other:
+           8 − 5 = 3
+           3 + 5 = 8
+       Pale orange, so it stands apart from the teal key-idea band. */
+    .result-box {
+      margin: 12px auto 0;
+      max-width: 420px;
+      padding: 10px 16px;
+      border: 2px solid var(--highlight);
+      border-radius: var(--radius);
+      background: #fdf1e6;
+      text-align: center;
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1.5;
+      white-space: pre-line;        /* the "\n" in the text starts a new line */
+    }
+  </style>
+</head>
+
+<body>
+<div class="bbl-page">
+
+  <!-- ========================= HEADER ========================= -->
+  <header class="bbl-header">
+    <h1>Beans in Two Boxes</h1>
+    <p>Move beans one at a time. One box goes up, the other goes down, and the total stays the same.</p>
+  </header>
+
+  <!-- ============== TOP ROW: mode and starting numbers ============== -->
+  <div class="bbl-panel">
+    <div class="bbl-row">
+      <!-- the two modes; data-mode tells the script which is which -->
+      <div class="bbl-tabs mode-tabs">
+        <button class="bbl-tab active" data-mode="move">Move beans</button>
+        <button class="bbl-tab" data-mode="take">Take away</button>
+        <button class="bbl-tab" data-mode="equal">Make them equal</button>
+      </div>
+
+      <div class="bbl-divider"></div>
+
+      <!-- the label texts change with the mode (see LABELS in the script) -->
+      <span id="labelA" class="bbl-label">Box A has</span>
+      <input id="startAInput" class="bbl-input" type="number" min="0" max="20" value="8">
+      <span id="labelB" class="bbl-label">Box B has</span>
+      <input id="startBInput" class="bbl-input" type="number" min="0" max="20" value="5">
+      <button id="setUpBtn" class="bbl-btn primary">Set up</button>
+    </div>
+  </div>
+
+  <!-- ============== THE BOXES ============== -->
+  <div class="stage-row">
+
+    <!-- ---------- Box A ---------- -->
+    <div class="box">
+      <div class="box-head">
+        <span class="box-name">Box A</span>
+        <span id="countA" class="box-count">0</span>
+      </div>
+      <div id="trayA" class="tray"></div>
+      <div id="recordA" class="box-record"></div>
+      <!-- Mode 2 only: beans to and from the pile -->
+      <div class="box-buttons equal-only hidden">
+        <button id="pileToA" class="bbl-btn forward">+1 from pile</button>
+        <button id="aToPile" class="bbl-btn back">−1 to pile</button>
+      </div>
+    </div>
+
+    <!-- ---------- the middle: arrows (Mode 1) or the pile (Mode 2) ---------- -->
+    <div class="middle">
+      <!-- Mode 1: move beans between the boxes -->
+      <div class="move-only" style="display:flex; flex-direction:column; gap:12px;">
+        <button id="aToB"    class="bbl-btn primary">Move 1 bean →</button>
+        <button id="bToA"    class="bbl-btn primary">← Move 1 bean</button>
+        <button id="resetBtn" class="bbl-btn quiet">Start again</button>
+      </div>
+
+      <!-- Take away: beans go out of A into the "Taken out" box, and back -->
+      <div class="take-only hidden" style="display:flex; flex-direction:column; gap:12px;">
+        <button id="takeOne"  class="bbl-btn back">Take 1 out →</button>
+        <button id="putBack"  class="bbl-btn quiet">← Put 1 back</button>
+        <button id="resetBtn3" class="bbl-btn quiet">Start again</button>
+      </div>
+
+      <!-- Make them equal: the pile of extra beans -->
+      <div class="equal-only hidden">
+        <div id="pile" class="pile-heap"></div>
+        <div class="pile-label">The pile</div>
+        <div class="middle-note">(as many beans as you need)</div>
+        <div style="text-align:center; margin-top:12px;">
+          <button id="resetBtn2" class="bbl-btn quiet">Start again</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------- Box B ---------- -->
+    <div class="box">
+      <div class="box-head">
+        <span id="nameB" class="box-name">Box B</span>
+        <span id="countB" class="box-count">0</span>
+      </div>
+      <div id="trayB" class="tray"></div>
+      <div id="recordB" class="box-record"></div>
+      <div class="box-buttons equal-only hidden">
+        <button id="pileToB" class="bbl-btn forward">+1 from pile</button>
+        <button id="bToPile" class="bbl-btn back">−1 to pile</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- colour key: which beans came from where -->
+  <div class="legend">
+    <span><span class="bean a"></span> started in Box A</span>
+    <span id="legendB"><span class="bean b"></span> started in Box B</span>
+    <span class="equal-only hidden"><span class="bean pile"></span> from the pile</span>
+  </div>
+
+  <!-- ============== READOUT ============== -->
+  <div id="readoutArea">
+    <div id="readoutMain" class="bbl-readout"></div>
+    <div id="readoutSub" class="bbl-readout-sub"></div>
+    <!-- Take away only: shown when all the beans have been taken out -->
+    <div id="resultBox" class="result-box hidden"></div>
+    <div id="chain" class="chain"></div>
+    <!-- the KEY IDEA of the mode on screen; stays put while hints change -->
+    <p id="keyIdea" class="key-idea"></p>
+    <p id="message" class="bbl-message"></p>
+  </div>
+
+</div>
+
+<script>
+/* =====================================================================
+   1. SETTINGS
+   ===================================================================== */
+const MAX_START = 20;   // a box can START with at most 20 beans
+const MAX_BOX   = 40;   // a box can HOLD at most 40 (20 + 20 poured together)
+
+// The real minus sign (−) looks better on screen than the hyphen (-).
+const MINUS = "−";
+
+// Friendly starting numbers for each mode (put in the boxes on switching)
+const DEFAULTS = {
+  move:  { a: 8,  b: 5 },    // 8 + 5, the finger-counting example
+  take:  { a: 8,  b: 5 },    // 8 − 5: here the second box is "take away 5"
+  equal: { a: 12, b: 18 }    // how many to add to 12 to make 18?
+};
+
+// The words in the top row and on Box B change with the mode:
+// in Take away, the second number is how many to take away, and
+// Box B holds the beans taken out.
+const LABELS = {
+  move:  { a: "Box A has", b: "Box B has", boxB: "Box B" },
+  take:  { a: "Box A has", b: "Take away", boxB: "Taken out" },
+  equal: { a: "Box A has", b: "Box B has", boxB: "Box B" }
+};
+
+// The key idea for each mode. Kept together so the wording is easy to change.
+const KEY_IDEAS = {
+  move:  "Adding is moving beans in one at a time: one box goes up by 1, the other goes down by 1, and the total stays the same.",
+  take:  "Taking away is moving beans out one at a time. What is left and what was taken out make what you started with.",
+  equal: "The difference is how many beans you add to the smaller box to make it match the bigger one."
+};
+
+
+/* =====================================================================
+   2. STATE — everything the tool needs to remember
+   =====================================================================
+   Each box is a LIST of beans. Each bean is remembered by where it came
+   from: "a", "b" or "pile". That is how a bean keeps its colour when it
+   moves into the other box.
+   Example: Box A = ["a","a","a"] means 3 beans, all A's own.          */
+const state = {
+  mode: "move",       // "move" (Move beans), "take" (Take away) or "equal" (Make them equal)
+  a: [],              // the beans in Box A
+  b: [],              // the beans in Box B
+  startA: 8,          // how many Box A had at Set up
+  startB: 5,          // how many Box B had at Set up
+  chain: [],          // Mode 1: every state so far, as [countA, countB]
+  takeAway: 5,        // Take away: how many beans to take out of Box A
+  busy: false         // true while beans are hopping
+};
+
+
+/* =====================================================================
+   3. DRAWING THE BOXES — turn the state into beans on screen
+   ===================================================================== */
+
+// Look up the page elements once and keep them in two small "maps",
+// so the code can say trays.a or trays[name] instead of searching each time.
+const trays   = { a: document.getElementById("trayA"),   b: document.getElementById("trayB") };
+const counts  = { a: document.getElementById("countA"),  b: document.getElementById("countB") };
+const records = { a: document.getElementById("recordA"), b: document.getElementById("recordB") };
+
+// Draw one box ("a" or "b") from scratch.
+// If lastArriving is true, the newest bean gets a place in the tray but
+// stays invisible, because the animation is about to land it there.
+function drawBox(name, lastArriving) {
+  const tray = trays[name];
+  tray.innerHTML = "";                              // empty the tray
+  state[name].forEach((kind, i) => {
+    const bean = document.createElement("div");
+    bean.className = "bean " + kind;                // e.g. "bean a"
+    if (lastArriving && i === state[name].length - 1) {
+      bean.classList.add("arriving");
+    }
+    tray.appendChild(bean);
+  });
+  counts[name].textContent = state[name].length;
+  drawRecord(name);
+}
+
+// A box's own record: what it started with, what changed, what it has now.
+//   started 8, now 13  →  "8 + 5 = 13"   (the "+ 5" in green)
+//   started 5, now 0   →  "5 − 5 = 0"    (the "− 5" in red)
+//   no change yet      →  "8"
+function drawRecord(name) {
+  const start = name === "a" ? state.startA : state.startB;
+  const now = state[name].length;
+  const change = now - start;
+  const el = records[name];
+  el.textContent = "";                              // clear it
+  if (change === 0) {
+    el.textContent = String(start);
+    return;
+  }
+  // Build the line out of three pieces so the middle one can be coloured.
+  const sign = change > 0 ? "+" : MINUS;
+  const middle = document.createElement("span");
+  middle.className = change > 0 ? "plus" : "minus";
+  middle.textContent = ` ${sign} ${Math.abs(change)} `;
+  el.append(String(start), middle, `= ${now}`);
+}
+
+function drawBoth() {
+  drawBox("a");
+  drawBox("b");
+}
+
+// Draw the pile once: a heap of orange beans placed at random-looking
+// (but fixed) spots, so it looks like a heap and not a grid.
+function drawPile() {
+  const pile = document.getElementById("pile");
+  const spots = [ [20,80],[48,84],[76,86],[104,84],[132,80],[34,62],[62,64],
+                  [90,66],[118,62],[50,44],[78,46],[106,44],[64,26],[92,28] ];
+  spots.forEach(([x, y]) => {
+    const bean = document.createElement("div");
+    bean.className = "bean pile";
+    bean.style.left = x + "px";
+    bean.style.top = y + "px";
+    pile.appendChild(bean);
+  });
+}
+
+
+/* =====================================================================
+   4. ANIMATION — one bean hopping from one place to another
+   =====================================================================
+   How it works:
+   • Find where the bean is now on the screen (getBoundingClientRect
+     gives an element's position and size in screen pixels).
+   • Change the state, and redraw: the bean vanishes from where it was
+     and gets an invisible place in the box it is going to.
+   • Find where that invisible place is.
+   • Make a temporary "flyer" bean at the start and slide it to the end
+     along a little arc, using element.animate() (the browser's built-in
+     animation tool). Then remove the flyer and show the real bean.
+
+   The function returns a Promise (a promise to tell us when the hop is
+   finished), so "await moveBean(...)" can wait for one bean before
+   starting the next.                                                  */
+
+// Where the pile is: we pretend a bean sits at the centre of the heap.
+function pileSpot() {
+  const r = document.getElementById("pile").getBoundingClientRect();
+  return { left: r.left + r.width / 2 - 13, top: r.top + r.height / 2 - 9 };
+}
+
+// Slide a flyer bean from one screen spot to another, hopping up on the way.
+function fly(from, to, kind, duration) {
+  const flyer = document.createElement("div");
+  flyer.className = "bean flyer " + kind;
+  flyer.style.left = from.left + "px";
+  flyer.style.top = from.top + "px";
+  document.body.appendChild(flyer);
+
+  const dx = to.left - from.left;      // how far right (negative = left)
+  const dy = to.top - from.top;        // how far down  (negative = up)
+  // three keyframes: start, the top of the hop (half-way, 70px higher), end
+  const hop = flyer.animate([
+    { transform: "translate(0px, 0px)" },
+    { transform: `translate(${dx / 2}px, ${dy / 2 - 70}px)` },
+    { transform: `translate(${dx}px, ${dy}px)` }
+  ], { duration: duration, easing: "ease-in-out" });
+
+  // .finished is a Promise that is kept when the animation ends
+  return hop.finished.then(() => flyer.remove());
+}
+
+// Move ONE bean. "from" and "to" are each "a", "b" or "pile".
+async function moveBean(from, to, duration) {
+  let kind, fromSpot;
+
+  // 1. take the bean out of where it is (the newest bean leaves first)
+  if (from === "pile") {
+    kind = "pile";
+    fromSpot = pileSpot();
+  } else {
+    fromSpot = trays[from].lastElementChild.getBoundingClientRect();
+    kind = state[from].pop();          // pop() removes the LAST item of a list
+    drawBox(from);
+  }
+
+  // 2. give it a place where it is going
+  let toSpot;
+  if (to === "pile") {
+    toSpot = pileSpot();               // beans going to the pile just disappear into it
+  } else {
+    state[to].push(kind);              // push() adds to the END of a list
+    drawBox(to, true);                 // true = the new bean stays invisible for now
+    toSpot = trays[to].lastElementChild.getBoundingClientRect();
+  }
+
+  // 3. hop, then show the real bean
+  await fly(fromSpot, toSpot, kind, duration);
+  if (to !== "pile") {
+    trays[to].lastElementChild.classList.remove("arriving");
+  }
+}
+
+// How long one hop takes. The buttons move one bean at a time, so this
+// is 0.45 seconds; if a "move many" button is ever added back, many
+// beans → each hop faster (never below 0.15 seconds).
+function hopTime(howMany) {
+  return Math.max(150, Math.min(450, 6000 / howMany));
+}
+
+
+/* =====================================================================
+   5. MOVE BEANS (Mode 1)
+   ===================================================================== */
+
+// Move "howMany" beans from one box to the other, one at a time.
+async function moveBetween(from, to, howMany) {
+  if (howMany <= 0 || state[from].length === 0) return;
+  setBusy(true);
+  say("");
+  const each = hopTime(howMany);
+  for (let i = 0; i < howMany; i++) {
+    await moveBean(from, to, each);
+    state.chain.push([state.a.length, state.b.length]);   // remember this step
+    updateReadout();
+  }
+  setBusy(false);
+  afterMoving();
+}
+
+// A hint after the beans stop, for the moments worth pointing out
+function afterMoving() {
+  if (state.mode === "take") {
+    if (state.b.length === state.takeAway) {
+      say("Now put them all back one at a time, and Box A has what it started with.");
+    }
+    return;
+  }
+  // Mode 1. After an ordinary move, say that the total hasn't changed.
+  // At the two moments worth pointing out, say something else instead.
+  const a = state.a.length, b = state.b.length;
+  const total = a + b;
+  const same = `The total in the two boxes is still ${total}.`;
+
+  if (a === state.startA && b === state.startB) {
+    // every bean that went across has come back
+    say(`Back where you started: ${state.startA} in Box A and ${state.startB} in Box B.`);
+  } else if (a === 0 || b === 0) {
+    // one box is empty: all the beans are in the other one.
+    // e.g. Box B empty → "Move 5 beans back to Box B, and Box A goes back to 8."
+    const emptyName = a === 0 ? "A" : "B";
+    const fullName  = a === 0 ? "B" : "A";
+    const emptyStart = a === 0 ? state.startA : state.startB;
+    const fullStart  = a === 0 ? state.startB : state.startA;
+    say(`Box ${emptyName} is empty, so all ${total} beans are in Box ${fullName}. ` +
+        `Move ${emptyStart} beans back to Box ${emptyName}, one at a time: ` +
+        `what does Box ${fullName} go back to?`);
+  } else {
+    say(same);
+  }
+}
+
+
+/* =====================================================================
+   6. MAKE THEM EQUAL (Mode 2)
+   =====================================================================
+   Beans only go between a box and the PILE, never between the boxes.
+   When the two boxes match, we look at what was done:
+     • only beans ADDED to the smaller box  → count up:  12 + 6 = 18
+     • only beans TAKEN from the bigger box → take away: 18 − 6 = 12
+     • anything else (both boxes changed)   → ask to start again,
+       changing only one box, because then the beans moved are no
+       longer the difference.                                          */
+
+async function pileMove(from, to) {
+  setBusy(true);
+  say("");
+  await moveBean(from, to, 450);
+  setBusy(false);
+  updateReadout();
+}
+
+
+/* =====================================================================
+   7. READOUT AND MESSAGES
+   ===================================================================== */
+const readoutMain = document.getElementById("readoutMain");
+const readoutSub  = document.getElementById("readoutSub");
+const chainEl     = document.getElementById("chain");
+const messageEl   = document.getElementById("message");
+
+function showReadout(main, sub) {
+  readoutMain.textContent = main;
+  readoutSub.textContent = sub;
+}
+
+function updateReadout() {
+  showResult("");                       // only Take away shows it, at the end
+  if (state.mode === "move") readoutMove();
+  else if (state.mode === "take") readoutTake();
+  else readoutEqual();
+}
+
+// Take away:
+//   on the way:  main "Taken out: 2 of 5"    sub "8 − 2 = 6 left in Box A"
+//   at the end:  main "All 5 taken out", and the result box shows
+//                    8 − 5 = 3
+//                    3 + 5 = 8
+function readoutTake() {
+  const left = state.a.length, out = state.b.length;
+  const start = state.startA, n = state.takeAway;
+  chainEl.textContent = "";
+  if (out < n) {
+    showReadout(`Taken out: ${out} of ${n}`,
+                `${start} ${MINUS} ${out} = ${left} left in Box A`);
+    showResult("");
+  } else {
+    showReadout(`All ${n} taken out`, "");
+    showResult(`${start} ${MINUS} ${n} = ${left}\n${left} + ${n} = ${start}`);
+  }
+}
+
+// Show words in the result box, or hide it with showResult("")
+function showResult(words) {
+  const box = document.getElementById("resultBox");
+  box.textContent = words;
+  box.classList.toggle("hidden", words === "");
+}
+
+// Mode 1:  main "9 + 4 = 13", and the chain of every step so far:
+//   "8 + 5 → 9 + 4 → 10 + 3"
+// With many steps, the chain keeps the first one and the last few:
+//   "8 + 5 → … → 17 + 4 → 18 + 3"
+function readoutMove() {
+  const a = state.a.length, b = state.b.length;
+  showReadout(`${a} + ${b} = ${a + b}`,
+              state.chain.length > 1 ? `The total in the two boxes has stayed ${a + b} all the way:` : "");
+  const steps = state.chain.map(([x, y]) => `${x} + ${y}`);
+  let shown = steps;
+  if (steps.length > 9) {
+    shown = [steps[0], "…"].concat(steps.slice(-7));    // first, "…", last 7
+  }
+  chainEl.textContent = state.chain.length > 1 ? shown.join("  →  ") : "";
+}
+
+// Mode 2: nothing is given away until the boxes match.
+function readoutEqual() {
+  const a = state.a.length, b = state.b.length;
+  chainEl.textContent = "";
+  if (a !== b) {
+    showReadout(`Box A: ${a}     Box B: ${b}`,
+                "Not equal yet. Use beans from the pile to make the boxes match.");
+    return;
+  }
+
+  const sA = state.startA, sB = state.startB;
+  if (sA === sB) {
+    showReadout(`${a} and ${b}`, "They already match: the difference is 0.");
+    return;
+  }
+
+  // which box started smaller, and how much each box changed
+  const smallName = sA < sB ? "A" : "B";
+  const bigName   = sA < sB ? "B" : "A";
+  const small = Math.min(sA, sB), big = Math.max(sA, sB);
+  const changeSmall = (sA < sB ? a - sA : b - sB);   // + means beans were added
+  const changeBig   = (sA < sB ? b - sB : a - sA);   // − means beans were taken
+  const diff = big - small;
+
+  if (changeBig === 0 && changeSmall > 0) {
+    // counted up: added only to the smaller box
+    showReadout(`${small} + ${changeSmall} = ${big}`,
+                `You added ${changeSmall} beans to Box ${smallName}, so ${big} ${MINUS} ${small} = ${diff}.`);
+    say(`The beans you added from the pile are the difference. Check: ${small} + ${diff} = ${big}.`);
+  } else if (changeSmall === 0 && changeBig < 0) {
+    // took away only from the bigger box
+    showReadout(`${big} ${MINUS} ${-changeBig} = ${small}`,
+                `You took ${-changeBig} beans from Box ${bigName}, so the difference is ${diff}.`);
+    say("Adding to the smaller box or taking from the bigger one: it takes the same number of beans.");
+  } else {
+    // both boxes changed: the beans moved are not the difference any more
+    showReadout(`${a} and ${b}: they match`,
+                "But both boxes changed. Start again and change only ONE box to find the difference.");
+    say("");
+  }
+}
+
+// Show the key idea for the mode on screen
+function showKeyIdea() {
+  document.getElementById("keyIdea").textContent = KEY_IDEAS[state.mode];
+}
+
+// A normal hint
+function say(words) {
+  messageEl.textContent = words;
+  messageEl.classList.remove("warn");
+}
+
+// A warning, shown in red
+function warn(words) {
+  messageEl.textContent = words;
+  messageEl.classList.add("warn");
+}
+
+// While beans hop, switch off every button, box and tab so a second
+// click can't start another move half-way through. Afterwards, switch
+// everything back on, then switch off the buttons that make no sense now.
+function setBusy(isBusy) {
+  state.busy = isBusy;
+  document.querySelectorAll("button, input").forEach(el => { el.disabled = isBusy; });
+  if (!isBusy) refreshButtons();
+}
+
+// Switch off a button when it can't do anything:
+// you can't move a bean out of an empty box, or into a full one.
+function refreshButtons() {
+  const a = state.a.length, b = state.b.length;
+  const off = (id, isOff) => { document.getElementById(id).disabled = isOff; };
+  off("aToB",   a === 0);
+  off("bToA",   b === 0);
+  off("pileToA", a >= MAX_BOX);
+  off("pileToB", b >= MAX_BOX);
+  // Take away: stop once enough are out (or A is empty); nothing to put back at the start
+  off("takeOne", b >= state.takeAway || a === 0);
+  off("putBack", b === 0);
+  off("aToPile", a === 0);
+  off("bToPile", b === 0);
+}
+
+
+/* =====================================================================
+   8. WIRING AND START-UP
+   ===================================================================== */
+
+// Read a whole number from a box. Returns null if it isn't one.
+function readWhole(id) {
+  const value = Number(document.getElementById(id).value);
+  if (!Number.isInteger(value) || value < 0) return null;
+  return value;
+}
+
+// "Set up": fill the boxes with their starting beans
+function setUp() {
+  const a = readWhole("startAInput");
+  let b = readWhole("startBInput");        // "let", because Take away changes it below
+  if (a === null || b === null) {
+    warn("Use whole numbers (0, 1, 2, ...).");
+    return;
+  }
+  if (a > MAX_START || b > MAX_START) {
+    warn(`Each box can start with at most ${MAX_START} beans.`);
+    return;
+  }
+
+  // Take away: the second number is how many to take out, and
+  // the "Taken out" box starts empty.
+  if (state.mode === "take") {
+    if (b > a) {
+      warn(`Box A only has ${a} beans: you can't take away ${b}.`);
+      return;
+    }
+    state.takeAway = b;
+    b = 0;
+  }
+
+  state.startA = a;
+  state.startB = b;
+  // Array(a).fill("a") makes a list of a copies of "a": ["a","a",...]
+  state.a = Array(a).fill("a");
+  state.b = Array(b).fill("b");
+  state.chain = [[a, b]];
+  drawBoth();
+  updateReadout();
+  refreshButtons();
+  if (state.mode === "move") {
+    say("Move beans one at a time with the arrows. Watch the two counts and the total.");
+  } else if (state.mode === "take") {
+    say(state.takeAway === 0
+        ? "Taking away 0: nothing moves, and Box A keeps all its beans."
+        : `Take ${state.takeAway} beans out of Box A, one at a time.`);
+  } else if (a === b) {
+    say("The boxes already match. Try two different numbers.");
+  } else {
+    say("How many beans from the pile will make the boxes match?");
+  }
+}
+
+// A shortcut: run "fn" when the element with this id is clicked
+function onClick(id, fn) {
+  document.getElementById(id).addEventListener("click", fn);
+}
+
+onClick("setUpBtn", setUp);
+onClick("resetBtn", setUp);     // Start again = Set up with the same numbers
+onClick("resetBtn2", setUp);
+onClick("resetBtn3", setUp);
+
+// Mode 1 buttons
+onClick("aToB",   () => moveBetween("a", "b", 1));
+onClick("bToA",   () => moveBetween("b", "a", 1));
+
+// Take away buttons: beans go from A to the "Taken out" box (B), and back.
+onClick("takeOne", () => moveBetween("a", "b", 1));
+onClick("putBack", () => moveBetween("b", "a", 1));
+
+// Make them equal buttons
+onClick("pileToA", () => pileMove("pile", "a"));
+onClick("pileToB", () => pileMove("pile", "b"));
+onClick("aToPile", () => pileMove("a", "pile"));
+onClick("bToPile", () => pileMove("b", "pile"));
+
+// Switching modes: show that mode's controls, put in its friendly
+// starting numbers, and set up afresh
+document.querySelectorAll(".mode-tabs .bbl-tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".mode-tabs .bbl-tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    state.mode = tab.dataset.mode;            // reads data-mode="move" or "equal"
+
+    // show the controls for this mode only
+    document.querySelectorAll(".move-only").forEach(el =>
+      el.classList.toggle("hidden", state.mode !== "move"));
+    document.querySelectorAll(".take-only").forEach(el =>
+      el.classList.toggle("hidden", state.mode !== "take"));
+    document.querySelectorAll(".equal-only").forEach(el =>
+      el.classList.toggle("hidden", state.mode !== "equal"));
+
+    // the words that change with the mode
+    document.getElementById("labelA").textContent = LABELS[state.mode].a;
+    document.getElementById("labelB").textContent = LABELS[state.mode].b;
+    document.getElementById("nameB").textContent  = LABELS[state.mode].boxB;
+    // in Take away every bean starts in Box A, so the yellow key isn't needed
+    document.getElementById("legendB").classList.toggle("hidden", state.mode === "take");
+
+    document.getElementById("startAInput").value = DEFAULTS[state.mode].a;
+    document.getElementById("startBInput").value = DEFAULTS[state.mode].b;
+    showKeyIdea();
+    setUp();
+  });
+});
+
+// Pressing Enter in either number box does the same as "Set up"
+["startAInput", "startBInput"].forEach(id => {
+  document.getElementById(id).addEventListener("keydown", e => {
+    if (e.key === "Enter") setUp();
+  });
+});
+
+// Start-up
+drawPile();
+showKeyIdea();
+setUp();
+</script>
+</body>
+</html>

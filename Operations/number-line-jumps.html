@@ -1,0 +1,1886 @@
+<!DOCTYPE html>
+<!--
+  =====================================================================
+  number-line-jumps.html  —  BBL Math Explorer Club
+  Operations module, Stage 1: the MEANINGS of + − × ÷ on a number line
+  =====================================================================
+
+  WHAT THIS TOOL SHOWS
+  --------------------
+  One perspective on all four operations: moving along a number line.
+
+  LAYOUT
+  ------
+  Left sidebar:  the five EXERCISES (Add, Take away, Count up, Multiply,
+                 Divide), the size of the number line, and the key idea.
+  Right side:    the controls for the chosen exercise (two rows at most),
+                 the drawing, and the readout under it.
+  The drawing's height is capped so the controls, the drawing and the
+  messages all fit on one projector screen without scrolling.
+
+  The exercises:
+
+    Add / Take away   (a planned sum, e.g. 138 + 125, or 263 − 125)
+      • The tool remembers the whole jump and shows "still to jump".
+      • Kids break the jump into any smaller jumps they like, e.g.
+          138 → 140 → 240 → 263   (+2, +100, +23)
+          138 → 140 → 260 → 263   (+2, +120, +3)
+        Jumps can go forward or back, so going past and coming back
+        works too:  38 + 29  as  +30 then −1.
+      • "Show the whole jump" draws +125 as ONE big pale arc over the
+        pieces: two paths, same start, same end. At the end the readout
+        says "Same as 138 + 125 = 263".
+      • A piece of 0 doesn't move you: the additive identity.
+
+    Count up   (the shopkeeper's way of subtracting)
+      • 63 − 38: start at 38 and count UP to 63 in easy pieces.
+      • The jumps (+2, +20, +3) add up to 25, which is the answer.
+      • The drawing is the same as 38 + 25: adding and subtracting
+        are the same relationship, read in two directions.
+
+  Multiply / Divide   (equal jumps)
+    • Multiplication: 4 jumps of 7 from 0 land on 28  (4 × 7).
+    • Division as REPEATED SUBTRACTION: start at 28 and jump back by 7
+      while a full jump still fits. The number of jumps is the answer:
+        28 → 21 → 14 → 7 → 0      28 − 7 − 7 − 7 − 7 = 0, so 28 ÷ 7 = 4
+      If it doesn't come out exact, you stop with something between 0
+      and the marker that is too small for another jump: the remainder.
+        30 → 23 → 16 → 9 → 2      30 ÷ 7 = 4, remainder 2
+    • When the jumps finish, the names appear on the drawing: "Dividend = 30"
+      at the start, "Divisor = 7 (the jump size)" in the corner, the
+      quotient (the jumps, numbered 1, 2, 3 ...),
+      remainder (the orange bracket), plus the rule
+        Dividend = Divisor × Quotient + Remainder.
+    • Jumps of 0 never take anything away: why 28 ÷ 0 has no answer.
+
+  FILES
+  -----
+  Everything is inside this one file, so it can be shared on its own.
+  The "SHARED BBL STYLE" block in the <head> is identical in every BBL
+  Math tool; the "Styles used ONLY by this tool" block is just for this one.
+
+  HOW THE CODE IS ORGANISED (search for these headings)
+    1. SETTINGS          ranges and drawing sizes
+    2. STATE             everything the tool remembers
+    3. SVG HELPERS       small functions that create drawing shapes
+    4. DRAWING           drawing the line, ticks, arcs and labels
+    5. ANIMATION         making one jump move smoothly
+    6. PLANNED SUM AND COUNT UP   the two Add & Subtract styles
+    7. EQUAL JUMPS       what the Multiply and Divide buttons do
+    8. READOUT/MESSAGES  the big expression and hints
+    9. WIRING            choosing an exercise, connecting buttons, start-up
+  =====================================================================
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- makes the page fit phone and tablet screens properly -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jumps on the Number Line</title>
+
+  <!-- =================================================================
+       SHARED BBL STYLE  (start)
+       This block is the same in every BBL Math tool. It is kept inside
+       each file so a tool can be shared as ONE file for feedback.
+       If you change it here, copy the same change into the other tools.
+       Later, this whole block can be moved out into a separate
+       bbl-math.css file and replaced by one line:
+           <link rel="stylesheet" href="bbl-math.css">
+       ================================================================= -->
+  <style>
+/* =====================================================================
+   SHARED LOOK for all BBL Math Explorer tools
+   =====================================================================
+
+   HOW THIS BLOCK IS USED
+   ----------------------
+   Every tool (number-line-jumps.html, exchange-add.html, ...) carries an
+   identical copy of this block. Change a colour or a text size here, then
+   copy the same change into the other tools so they all keep matching.
+
+   THE ONE SAFETY RULE
+   -------------------
+   Adding a new style here is always safe.
+   Renaming or deleting an existing style can break an older tool that
+   still uses the old name. After any rename/delete, open every tool once
+   and check it still looks right.
+
+   The file is in sections:
+     1. Colours and sizes (the "design tokens")
+     2. The page
+     3. Header
+     4. Panels and rows of controls
+     5. Buttons
+     6. Inputs and dropdowns
+     7. Tabs (switching between modes)
+     8. Readout (the big expression) and messages
+     9. Number line drawings (SVG) — shared by every number-line tool
+   ===================================================================== */
+
+
+/* ---------------------------------------------------------------------
+   1. COLOURS AND SIZES
+   ---------------------------------------------------------------------
+   ":root" means "the whole page". Anything written as --name: value;
+   is a VARIABLE. Elsewhere we use it as var(--name).
+   Keeping all colours here means we choose them once and reuse them.
+   The meaning of each colour stays the same across all tools, so kids
+   learn it: green always means "forward / adding", red "back / taking".
+   --------------------------------------------------------------------- */
+:root {
+  /* backgrounds */
+  --bg:        #fbf8f2;   /* warm off-white page: easier on a projector than pure white */
+  --panel:     #ffffff;   /* white cards that hold the controls */
+  --border:    #e4ddcf;   /* soft border around cards */
+
+  /* text */
+  --ink:       #1f2933;   /* main text: near-black */
+  --ink-soft:  #5b6670;   /* quieter text: hints, tick numbers */
+
+  /* meaning colours */
+  --accent:    #1f7a8c;   /* teal: main buttons, "you are here" marker */
+  --forward:   #2a9d4b;   /* green: moving forward, adding */
+  --back:      #d1495b;   /* red: moving back, taking away */
+  --highlight: #e07a1f;   /* orange: "notice this" — targets, leftovers */
+  --ghost:     #9aa5b1;   /* grey: "what would happen if..." */
+
+  /* drawing */
+  --line:      #2f3a45;   /* the number line and its ticks */
+
+  /* shape and type */
+  --radius:    12px;      /* how rounded the corners are */
+  --font: system-ui, "Segoe UI", Roboto, "Noto Sans", Arial, sans-serif;
+          /* system fonts only: the tools keep working with no internet */
+
+  /* BIG text sizes, because these tools are shown on a projector */
+  --fs-base:   20px;      /* ordinary text and buttons */
+  --fs-big:    30px;      /* the main readout (e.g. 38 + 25 = 63) */
+  --fs-title:  32px;      /* page title */
+}
+
+
+/* ---------------------------------------------------------------------
+   2. THE PAGE
+   --------------------------------------------------------------------- */
+
+/* "box-sizing: border-box" makes width/height include padding and
+   border. It makes layouts far less surprising, so we set it everywhere. */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  line-height: 1.4;
+}
+
+/* .bbl-page centres the tool and stops it getting too wide on a big screen */
+.bbl-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+}
+
+
+/* ---------------------------------------------------------------------
+   3. HEADER: tool title and a one-line subtitle
+   --------------------------------------------------------------------- */
+.bbl-header h1 {
+  margin: 0;
+  font-size: var(--fs-title);
+}
+.bbl-header p {
+  margin: 4px 0 16px;
+  color: var(--ink-soft);
+}
+
+
+/* ---------------------------------------------------------------------
+   4. PANELS AND ROWS
+   --------------------------------------------------------------------- */
+
+/* A white card that groups related controls */
+.bbl-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+/* A row of controls that wraps onto the next line on small screens.
+   "display: flex" lines children up side by side;
+   "flex-wrap: wrap" lets them wrap; "gap" puts space between them. */
+.bbl-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+}
+.bbl-row + .bbl-row { margin-top: 12px; }   /* space between stacked rows */
+
+/* Small grey label in front of an input, e.g. "Jump size" */
+.bbl-label {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+/* A thin vertical divider between groups inside a row */
+.bbl-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+
+/* ---------------------------------------------------------------------
+   5. BUTTONS
+   ---------------------------------------------------------------------
+   Use class="bbl-btn" for every button, then add ONE colour class:
+     bbl-btn primary   teal   (the main action)
+     bbl-btn forward   green  (add / move forward)
+     bbl-btn back      red    (take away / move back)
+     bbl-btn quiet     white  (undo, clear, less important)
+   --------------------------------------------------------------------- */
+.bbl-btn {
+  font: inherit;               /* use the page font, not the browser's */
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  color: #fff;
+  background: var(--accent);
+  transition: transform 0.05s, filter 0.15s;
+}
+.bbl-btn:hover   { filter: brightness(1.08); }
+.bbl-btn:active  { transform: translateY(1px); }   /* tiny "press" feel */
+
+.bbl-btn.primary { background: var(--accent); }
+.bbl-btn.forward { background: var(--forward); }
+.bbl-btn.back    { background: var(--back); }
+.bbl-btn.quiet {
+  background: #fff;
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+/* While an animation runs, the tool disables its buttons */
+.bbl-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+}
+
+
+/* ---------------------------------------------------------------------
+   6. INPUTS AND DROPDOWNS
+   --------------------------------------------------------------------- */
+.bbl-input,
+.bbl-select {
+  font: inherit;
+  font-size: var(--fs-base);
+  padding: 8px 10px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+}
+.bbl-input { width: 6.5em; text-align: center; font-weight: 700; }
+.bbl-input:focus,
+.bbl-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.bbl-input:disabled,
+.bbl-select:disabled { opacity: 0.5; }
+
+
+/* ---------------------------------------------------------------------
+   7. TABS: switching between modes of one tool
+   ---------------------------------------------------------------------
+   <div class="bbl-tabs">
+     <button class="bbl-tab active">Mode A</button>
+     <button class="bbl-tab">Mode B</button>
+   </div>
+   The tool's script moves the "active" class when a tab is clicked.
+   --------------------------------------------------------------------- */
+.bbl-tabs {
+  display: inline-flex;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;              /* keeps the inner corners rounded */
+}
+.bbl-tab {
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 16px;
+  border: none;
+  background: #fff;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.bbl-tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+.bbl-tab:disabled { cursor: not-allowed; opacity: 0.6; }
+
+
+/* ---------------------------------------------------------------------
+   8. READOUT AND MESSAGES
+   ---------------------------------------------------------------------
+   .bbl-readout  the big line kids read, e.g. "38 + 2 + 23 = 63"
+   .bbl-readout-sub   a smaller second line, e.g. "Same as 38 + 25"
+   .bbl-message  a hint or warning under the drawing
+   --------------------------------------------------------------------- */
+.bbl-readout {
+  font-size: var(--fs-big);
+  font-weight: 700;
+  min-height: 1.4em;             /* keeps the layout still when it is empty */
+  text-align: center;
+}
+.bbl-readout-sub {
+  font-size: var(--fs-base);
+  color: var(--ink-soft);
+  min-height: 1.4em;
+  text-align: center;
+}
+.bbl-message {
+  min-height: 1.4em;
+  margin: 8px 0 0;
+  text-align: center;
+  color: var(--ink-soft);
+}
+.bbl-message.warn { color: var(--back); font-weight: 600; }
+
+
+/* ---------------------------------------------------------------------
+   9. NUMBER LINE DRAWINGS (SVG)
+   ---------------------------------------------------------------------
+   SVG is the drawing language the tools use for the number line.
+   SVG shapes are styled with "stroke" (the outline colour), "fill"
+   (the inside colour) and "stroke-width" (outline thickness), instead
+   of the "color"/"background" used for ordinary page elements.
+   These classes are shared so every number-line tool looks the same.
+   --------------------------------------------------------------------- */
+
+/* The box the drawing sits in. The SVG stretches to the full width. */
+.bbl-stage {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+.bbl-stage svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* the line itself and its ticks */
+.nl-line        { stroke: var(--line); stroke-width: 3; stroke-linecap: round; }
+.nl-tick        { stroke: var(--line); stroke-width: 1.5; }
+.nl-tick-round  { stroke-width: 3; }          /* round numbers: thicker tick */
+.nl-tick-label  { font-size: 20px; fill: var(--ink-soft); text-anchor: middle; }
+
+/* "you are here" and "you started here" */
+.nl-marker      { fill: var(--accent); stroke: #fff; stroke-width: 3; }
+.nl-start       { fill: #fff; stroke: var(--accent); stroke-width: 4; }
+.nl-landing     { font-size: 20px; font-weight: 700; fill: var(--accent); text-anchor: middle; }
+
+/* jump arcs. "fill: none" because an arc is just an outline. */
+.nl-jump         { fill: none; stroke-width: 4; stroke-linecap: round; }
+.nl-jump.forward { stroke: var(--forward); }
+.nl-jump.back    { stroke: var(--back); }
+.nl-jump.ghost   { stroke: var(--ghost); stroke-dasharray: 8 8; }  /* dashed */
+
+/* the "+5" / "−17" written on top of each arc */
+.nl-jump-label         { font-size: 24px; font-weight: 700; text-anchor: middle; }
+.nl-jump-label.forward { fill: var(--forward); }
+.nl-jump-label.back    { fill: var(--back); }
+.nl-jump-label.ghost   { fill: var(--ghost); }
+
+/* arrowheads at the end of arcs (they sit inside <marker> elements) */
+.nl-arrow.forward { fill: var(--forward); }
+.nl-arrow.back    { fill: var(--back); }
+.nl-arrow.ghost   { fill: var(--ghost); }
+
+/* things to notice: a target and the leftover gap */
+.nl-target   { stroke: var(--highlight); stroke-width: 5; stroke-linecap: round; }
+.nl-leftover { fill: var(--highlight); opacity: 0.85; }
+.nl-note     { font-size: 20px; font-weight: 700; fill: var(--highlight); text-anchor: middle; }
+  </style>
+  <!-- ======================= SHARED BBL STYLE  (end) ================= -->
+
+  <!-- Styles used ONLY by this tool. Everything general is in the SHARED BBL STYLE block above -->
+  <style>
+    /* Only some controls are visible at a time.
+       The script adds/removes the "hidden" class. */
+    .hidden { display: none !important; }
+
+    /* the readout area under the drawing */
+    #readoutArea { margin-top: 8px; }
+
+    /* The "whole jump": one big pale arc from start to end, drawn behind
+       the pieces so kids can compare the two paths. Pale (opacity) and
+       thick so it reads as "the same trip, done in one go". */
+    .whole-jump       { fill: none; stroke-width: 7; stroke-linecap: round; opacity: 0.3; }
+    .whole-jump.forward { stroke: var(--forward); }
+    .whole-jump.back    { stroke: var(--back); }
+    .whole-label        { font-size: 26px; font-weight: 700; text-anchor: middle; opacity: 0.55; }
+    .whole-label.forward { fill: var(--forward); }
+    .whole-label.back    { fill: var(--back); }
+
+    /* the hint line can hold several lines (the division rule) */
+    #message { white-space: pre-line; }
+
+    /* the key idea: a pale teal band with bold words, so it stands out
+       from the hints around it */
+    /* It now sits in the sidebar, under the exercise list, so it reads as
+       "the big idea of the exercise you picked". */
+    .key-idea {
+      margin: 0;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      background: #e6f2f4;          /* a very pale version of the teal accent */
+      color: var(--ink);
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    /* dividend, divisor, quotient, remainder in the text under the drawing:
+       bold, and teal like the names written on the drawing */
+    .term { font-weight: 800; color: var(--accent); }
+
+    /* division names on the drawing: "Dividend = 30", "Divisor = 7" and the jump numbers */
+    .name-tag { font-size: 19px; font-weight: 700; font-style: italic; fill: var(--accent); text-anchor: middle; }
+    .name-num { font-size: 20px; font-weight: 700; fill: var(--accent); text-anchor: middle; }
+    .name-tag.name-corner { text-anchor: start; font-size: 22px; }
+
+    /* the bracket under the remainder in division */
+    .leftover-bracket { fill: none; stroke: var(--highlight); stroke-width: 3; stroke-linejoin: round; }
+
+
+    /* ===================== PAGE LAYOUT =====================
+       Sidebar on the left, work area on the right.            */
+
+    /* A little wider than the shared 1200px, because the sidebar takes
+       230px; less padding at the top and bottom to save height. */
+    .bbl-page { max-width: 1440px; padding-top: 12px; padding-bottom: 12px; }
+
+    /* "display: grid" lays children out in columns.
+       "230px 1fr": the first column is 230px wide, the second takes
+       all the rest (1fr = "one fraction" of the free space).
+       "align-items: start" stops the sidebar stretching to full height. */
+    .layout {
+      display: grid;
+      grid-template-columns: 230px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    /* "min-width: 0" is a grid quirk: without it the main column refuses
+       to shrink below its content, and the drawing could push the page
+       wider than the screen. */
+    .main { min-width: 0; }
+
+    /* If the page ever scrolls, the sidebar stays in view ("sticky") */
+    .sidebar { position: sticky; top: 12px; }
+    .sidebar .bbl-header h1 { font-size: 26px; line-height: 1.15; }
+    .sidebar .bbl-header p  { font-size: 16px; margin: 6px 0 12px; }
+
+    /* small capital headings in the sidebar: EXERCISE, NUMBER LINE */
+    .side-heading {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 4px;
+    }
+    .ex-list + .side-heading { margin-top: 16px; }   /* space above NUMBER LINE */
+
+    /* the two family names: "Add & Subtract", "Equal Jumps" */
+    .ex-group {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink-soft);
+      margin: 8px 0 2px 4px;
+    }
+
+    /* One exercise button: name on the left, its sign (+ − × ÷) on the
+       right. "display: flex" + "justify-content: space-between" pushes
+       the two to opposite ends of the button. */
+    .ex-btn {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      font: inherit;
+      font-weight: 600;
+      padding: 7px 12px;
+      margin: 2px 0;
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      text-align: left;
+    }
+    .ex-btn .sign     { font-size: 24px; font-weight: 800; line-height: 1; }
+    .ex-btn:hover     { background: #f3eee4; }
+    .ex-btn.active    { background: var(--accent); color: #fff; }   /* the chosen one */
+    .ex-btn:disabled  { cursor: not-allowed; opacity: 0.6; }
+
+    .side-select { width: 100%; }
+
+    /* The controls panel: rows stacked with an even gap between them.
+       Hidden rows take no space at all, so whichever rows are showing
+       are spaced the same. */
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+    .controls .bbl-row + .bbl-row { margin-top: 0; }   /* the gap does the spacing now */
+
+    /* Smaller text in the control rows, to leave more height for the
+       drawing and the readout. The trick: --fs-base is the shared text-size
+       variable. Giving it a new value HERE changes it only for things
+       inside .controls, so the boxes, labels and buttons all shrink
+       together, while the readout and the sidebar keep the big size. */
+    .controls { --fs-base: 17px; font-size: var(--fs-base); }
+    .controls .bbl-btn   { padding: 7px 14px; }
+    .controls .bbl-input { padding: 6px 8px; width: 5.5em; }
+    .controls .bbl-row   { gap: 8px 10px; }
+
+    /* the big + or − between the two boxes in Add / Take away,
+       green or red like the jumps */
+    .op-sign         { font-size: 26px; font-weight: 800; min-width: 0.7em; text-align: center; }
+    .op-sign.forward { color: var(--forward); }
+    .op-sign.back    { color: var(--back); }
+
+    /* Cap the drawing's height so the readout and hints underneath stay on
+       screen. 100vh is the full height of the browser window; about 275px
+       of it is needed for the controls above and the readout below.
+       max(280px, ...) means "never smaller than 280px". The drawing keeps
+       its shape and simply sits in the middle of its box. */
+    .bbl-stage svg { max-height: max(280px, calc(100vh - 275px)); }
+
+    /* The readout on ONE line: the big sum on the left, the smaller line
+       next to it. "flex-wrap: wrap" puts the small line underneath only
+       when there isn't room. "align-items: baseline" lines the two up on
+       the bottom of their letters, even though the sizes differ. */
+    .readout-line {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: baseline;
+      gap: 2px 18px;
+      min-height: 42px;               /* keeps the layout still when empty */
+    }
+    .readout-line .bbl-readout,
+    .readout-line .bbl-readout-sub { min-height: 0; }
+    /* a thin divider before the small line, but only when it has text
+       (":empty" means "has nothing inside") */
+    #readoutSub:not(:empty) {
+      border-left: 2px solid var(--border);
+      padding-left: 18px;
+    }
+
+    /* On a short screen (a laptop or projector at 768 high, minus the
+       browser's own bars) the sidebar runs out of height: drop the
+       subtitle so the key idea at the bottom stays visible. */
+    @media (max-height: 800px) {
+      .sidebar .bbl-header p { display: none; }
+      .sidebar .bbl-header h1 { margin-bottom: 12px; }
+    }
+
+    /* On a narrow screen (phone, small tablet) there is no room for a
+       sidebar: it goes back to the top, and the exercises become a row
+       of buttons that wraps. */
+    @media (max-width: 820px) {
+      .layout  { grid-template-columns: 1fr; }
+      .sidebar { position: static; }
+      .ex-list { display: flex; flex-wrap: wrap; gap: 6px; }
+      .ex-group { display: none; }
+      .ex-btn  { width: auto; gap: 8px; margin: 0; border: 2px solid var(--border); }
+      /* on a phone the two readout lines are stacked anyway: no divider */
+      #readoutSub:not(:empty) { border-left: none; padding-left: 0; }
+    }
+
+  </style>
+</head>
+
+<body>
+<div class="bbl-page">
+<!-- The page has two columns ("layout" is a CSS grid, see the styles):
+       left  = the sidebar: title, choice of exercise, number line, key idea
+       right = the controls for that exercise, the drawing, the readout   -->
+<div class="layout">
+
+  <!-- ======================= SIDEBAR (left) ======================= -->
+  <aside class="sidebar">
+    <header class="bbl-header">
+      <h1>Jumps on the Number Line</h1>
+      <p>Adding moves you forward. Taking away moves you back. Equal jumps multiply and divide.</p>
+    </header>
+
+    <div class="bbl-panel">
+      <!-- The five exercises. data-exercise tells the script which is which.
+           The two small headings keep the two families visible:
+           jumps of any size, and equal jumps. -->
+      <div class="side-heading">Exercise</div>
+      <div class="ex-list">
+        <div class="ex-group">Add &amp; Subtract</div>
+        <button class="ex-btn active" data-exercise="add">Add <span class="sign">+</span></button>
+        <button class="ex-btn" data-exercise="take">Take away <span class="sign">−</span></button>
+        <button class="ex-btn" data-exercise="count">Count up <span class="sign"></span></button>
+
+        <div class="ex-group">Equal Jumps</div>
+        <button class="ex-btn" data-exercise="multiply">Multiply <span class="sign">×</span></button>
+        <button class="ex-btn" data-exercise="divide">Divide <span class="sign">÷</span></button>
+      </div>
+
+      <div class="side-heading">Number line</div>
+      <!-- the value of each option is the largest number on the line -->
+      <select id="rangeSelect" class="bbl-select side-select">
+        <option value="20">0 to 20</option>
+        <option value="100" selected>0 to 100</option>
+        <option value="1000">0 to 1,000</option>
+      </select>
+    </div>
+
+    <!-- the KEY IDEA of the chosen exercise, e.g. "Addition is repeated
+         increment by 1". It stays put while the hints change. -->
+    <p id="keyIdea" class="key-idea hidden"></p>
+  </aside>
+
+  <!-- ======================= WORK AREA (right) ======================= -->
+  <main class="main">
+
+    <!-- All the control rows live in one panel. The script shows only the
+         rows the chosen exercise needs (see EXERCISES in section 9). -->
+    <div class="bbl-panel controls">
+
+      <!-- ---------- Add / Take away: set-up row ---------- -->
+      <!-- The sign between the boxes is written by the script:
+           a green + for Add, a red − for Take away. -->
+      <div id="planSetupRow" class="bbl-row">
+        <span class="bbl-label">Start at</span>
+        <input id="planStartInput" class="bbl-input" type="number" min="0" value="38">
+        <span id="planOpSign" class="op-sign forward">+</span>
+        <input id="planAmountInput" class="bbl-input" type="number" min="0" value="25">
+        <button id="planSetupBtn" class="bbl-btn primary">Set up</button>
+
+        <div class="bbl-divider"></div>
+
+        <!-- draws the whole jump as ONE arc, to compare with the smaller jumps -->
+        <button id="wholeJumpBtn" class="bbl-btn quiet">Show the whole jump</button>
+      </div>
+
+      <!-- ---------- Count up: set-up row ---------- -->
+      <div id="countSetupRow" class="bbl-row hidden">
+        <span class="bbl-label">Count up from</span>
+        <input id="countFromInput" class="bbl-input" type="number" min="0" value="38">
+        <span class="bbl-label">to</span>
+        <input id="countToInput" class="bbl-input" type="number" min="0" value="63">
+        <button id="countSetupBtn" class="bbl-btn primary">Set up</button>
+      </div>
+
+      <!-- ---------- Next jump: shared by Add, Take away and Count up ---------- -->
+      <!-- Kids choose how to break the trip into jumps; the tool only draws
+           each jump and keeps count of what is left. Both directions are
+           always there: going past and coming back (38 + 29 as +30 then −1)
+           is allowed too. -->
+      <div id="pathRows" class="bbl-row">
+        <span class="bbl-label">Next jump</span>
+        <input id="pathJumpInput" class="bbl-input" type="number" min="0" placeholder="?">
+        <button id="pathForwardBtn" class="bbl-btn forward">Jump forward +</button>
+        <button id="pathBackBtn" class="bbl-btn back">Jump back −</button>
+
+        <div class="bbl-divider"></div>
+
+        <!-- (No "Start again" button: pressing Set up does the same thing,
+             with whatever numbers are in the boxes.) -->
+        <button id="pathUndoBtn" class="bbl-btn quiet">Undo last jump</button>
+      </div>
+
+      <!-- ---------- Multiply ---------- -->
+      <div id="multiplyRow" class="bbl-row hidden">
+        <span class="bbl-label">Jump size</span>
+        <input id="eqSizeInput" class="bbl-input" type="number" min="0" value="7">
+        <span class="bbl-label">Number of jumps</span>
+        <input id="eqCountInput" class="bbl-input" type="number" min="0" value="4">
+        <button id="makeJumpsBtn" class="bbl-btn forward">Make the jumps (×)</button>
+
+        <div class="bbl-divider"></div>
+
+        <button id="clearMulBtn" class="bbl-btn quiet">Clear</button>
+      </div>
+
+      <!-- ---------- Divide ---------- -->
+      <!-- Its "Jump size" box always shows the same number as the one in
+           Multiply (the script keeps the two in step). -->
+      <div id="divideRow" class="bbl-row hidden">
+        <span class="bbl-label">Start from</span>
+        <input id="eqStartInput" class="bbl-input" type="number" min="0" value="28">
+        <span class="bbl-label">Jump size</span>
+        <input id="divSizeInput" class="bbl-input" type="number" min="0" value="7">
+        <button id="howManyBtn" class="bbl-btn back">How many jumps back to 0? (÷)</button>
+
+        <div class="bbl-divider"></div>
+
+        <button id="clearDivBtn" class="bbl-btn quiet">Clear</button>
+      </div>
+    </div>
+
+    <!-- ============== THE DRAWING ============== -->
+    <!-- viewBox="0 0 1000 420" sets up our own coordinate system:
+         1000 units wide, 420 tall. The SVG then stretches to fit the
+         screen, so we can always draw as if the screen were 1000 wide. -->
+    <div class="bbl-stage">
+      <svg id="stage" viewBox="0 0 1000 420" role="img" aria-label="Number line with jumps"></svg>
+    </div>
+
+    <!-- ============== READOUT ============== -->
+    <div id="readoutArea">
+      <!-- the big sum and the smaller "Planned: ..." / "Same as ..." side by
+           side on ONE line, to save height (they wrap if there's no room) -->
+      <div class="readout-line">
+        <div id="readoutMain" class="bbl-readout"></div>
+        <div id="readoutSub" class="bbl-readout-sub"></div>
+      </div>
+      <p id="message" class="bbl-message"></p>
+    </div>
+
+  </main>
+</div>
+</div>
+
+<script>
+/* =====================================================================
+   1. SETTINGS
+   ===================================================================== */
+
+// Each range describes how one number line is drawn:
+//   max    – the biggest number on the line (the line runs 0 to max)
+//   minor  – a small tick every this many
+//   label  – a number is written under the tick every this many
+//   round  – the "round numbers" (tens or hundreds) that get thicker ticks
+const RANGES = {
+  "20":   { max: 20,   minor: 1,  label: 1,   round: 10 },
+  "100":  { max: 100,  minor: 1,  label: 10,  round: 10 },
+  "1000": { max: 1000, minor: 10, label: 100, round: 100 }
+};
+
+// Drawing sizes, in the units of the SVG viewBox (1000 wide, 420 tall).
+const W = 1000;          // width of the drawing
+const MARGIN = 45;       // empty space at the left and right ends
+const LINE_Y = 220;      // how far down the number line sits
+const ROW_TICKS   = LINE_Y + 34;   // row for the tick numbers
+const ROW_LANDING = LINE_Y + 66;   // first row for "you landed here" numbers
+const LANDING_ROWS = 3;            // up to 3 rows, for numbers that sit close together
+const ROW_STEP    = 28;            // distance between those rows
+const ROW_NOTES   = LINE_Y + 156;  // row for "target" and "left over"
+const MIN_LABEL_GAP = 48;          // two numbers closer than this can't share a row
+const LABEL_W = 58;                // rough width of a jump label like "+100"
+const LABEL_H = 26;                // rough height of a jump label
+
+// The SVG "namespace". Drawing shapes must be created with it,
+// otherwise the browser treats them as unknown HTML tags and shows nothing.
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+// The real minus sign (−) looks better on screen than the hyphen (-).
+const MINUS = "−";
+
+
+/* =====================================================================
+   2. STATE — everything the tool needs to remember
+   ===================================================================== */
+const state = {
+  range: RANGES["100"],  // which number line is showing
+  exercise: "add",       // picked in the sidebar: "add", "take", "count", "multiply" or "divide"
+  mode: "addsub",        // follows from the exercise: "addsub" (Add, Take away, Count up)
+                         //   or "equal" (Multiply, Divide)
+  style: "plan",         // for the Add & Subtract family: "plan" (Add, Take away) or "count"
+  showWhole: false,      // Planned sum: draw the whole jump as one arc?
+  start: 38,             // where the jumping started
+  position: 38,          // where the marker is now
+  jumps: [],             // every jump made so far, as { from, to }
+
+  // Planned sum / Count up: the whole trip, as
+  //   { kind: "add" | "take" | "count", start, end, amount }
+  // "end" is where the trip must finish. For "count", amount is not used.
+  plan: null,
+
+  target: null,          // a number marked in orange (Count up, Equal Jumps)
+  leftover: null,        // Equal Jumps: the remainder, shaded from 0, as { from, to }
+  division: null,        // Equal Jumps: the last FINISHED division, as { start, size, count, left }
+  busy: false            // true while a jump is animating
+};
+
+
+/* =====================================================================
+   3. SVG HELPERS
+   ===================================================================== */
+
+// The drawing, and "layers" inside it. Shapes in later layers are drawn
+// on top of earlier ones, so the marker (top layer) is never hidden.
+const svg = document.getElementById("stage");
+const layers = {};
+
+// Make one SVG shape. Example:
+//   svgEl("circle", { cx: 10, cy: 20, r: 5, class: "nl-marker" }, someLayer)
+// creates <circle cx="10" cy="20" r="5" class="nl-marker"> inside someLayer.
+function svgEl(tag, attrs, parent) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const name in attrs) {
+    el.setAttribute(name, attrs[name]);
+  }
+  if (parent) parent.appendChild(el);
+  return el;
+}
+
+// Make a text label in the drawing.
+function svgText(x, y, words, className, parent) {
+  const t = svgEl("text", { x: x, y: y, class: className }, parent);
+  t.textContent = words;
+  return t;
+}
+
+// Convert a NUMBER on the line into an x position in the drawing.
+// 0 sits at the left margin, max sits at the right margin.
+function xOf(value) {
+  return MARGIN + (value / state.range.max) * (W - 2 * MARGIN);
+}
+
+// Work out the curved arc for a jump from one number to another.
+// We use a "quadratic curve": it starts at one point, ends at another,
+// and bends towards a control point in between. Putting the control
+// point 2h above the line makes the top of the arc exactly h high.
+function arcShape(from, to, index) {
+  const x1 = xOf(from);
+  const x2 = xOf(to);
+  const width = Math.abs(x2 - x1);
+  // taller arcs for longer jumps, but never too flat or too tall;
+  // every second jump is a little taller so labels don't sit on top of each other
+  let h = Math.min(160, Math.max(30, width * 0.45)) + (index % 2) * 16;
+  const mid = (x1 + x2) / 2;
+  return {
+    d: `M ${x1} ${LINE_Y} Q ${mid} ${LINE_Y - 2 * h} ${x2} ${LINE_Y}`,
+    labelX: mid,
+    labelY: LINE_Y - h - 12        // just above the top of the arc
+  };
+}
+
+// Build the empty layers and the arrowhead shapes, once, at start-up.
+function setUpDrawing() {
+  // <defs> holds shapes that are defined once and reused,
+  // like the arrowheads that sit at the end of every arc.
+  const defs = svgEl("defs", {}, svg);
+  ["forward", "back"].forEach(kind => {
+    // markerWidth/Height = size; refX/refY = which point touches the line end;
+    // orient="auto" turns the arrow to follow the direction of the arc.
+    const marker = svgEl("marker", {
+      id: "arrow-" + kind, viewBox: "0 0 10 10", refX: "8", refY: "5",
+      markerWidth: "3.5", markerHeight: "3.5", orient: "auto"
+      // (marker sizes are multiplied by the line thickness, so 3.5 × 4 = 14 units)
+    }, defs);
+    svgEl("path", { d: "M 0 0 L 10 5 L 0 10 z", class: "nl-arrow " + kind }, marker);
+  });
+
+  // the layers, from bottom to top
+  ["ticks", "notes", "arcs", "labels", "top"].forEach(name => {
+    layers[name] = svgEl("g", {}, svg);   // <g> = a group of shapes
+  });
+}
+
+// Remove every shape from every layer (the arrowheads in <defs> stay).
+function clearLayers() {
+  for (const name in layers) {
+    layers[name].innerHTML = "";
+  }
+}
+
+
+/* =====================================================================
+   4. DRAWING — redraw the whole picture from the state
+   =====================================================================
+   We keep it simple: whenever something changes, wipe the drawing and
+   draw everything again from "state". Only the moving jump is animated
+   (section 5); everything already finished is drawn here.            */
+
+function drawAll() {
+  clearLayers();
+  drawLineAndTicks();
+  drawNotes();
+
+  // every finished jump, with its arrow and label.
+  // placedLabels remembers where each "+20" went, so the next one can
+  // move up out of the way instead of writing on top of it.
+  placedLabels = [];
+  jumpLabelSpots = [];
+  landingSpots = [];
+  drawWholeJump();
+  state.jumps.forEach((jump, i) => drawFinishedJump(jump, i));
+
+
+
+  // numbers you landed on: the start, plus the end of every jump.
+  // A Set keeps each number only once, even if you land on it twice.
+  const landed = new Set([state.start]);
+  state.jumps.forEach(j => landed.add(j.to));
+
+  // Write them left to right. If a number would sit too close to the one
+  // before it on the same row (like 38 and 40 on the 0–100 line), it goes
+  // down to the next row that has room, so they don't run into each other
+  // ("3840"). lastX remembers, for each row, where its last number went.
+  const sorted = Array.from(landed).sort((a, b) => a - b);
+  const lastX = Array(LANDING_ROWS).fill(-Infinity);   // e.g. [-Infinity, -Infinity, -Infinity]
+  sorted.forEach(v => {
+    const x = xOf(v);
+    let row = lastX.findIndex(last => x - last >= MIN_LABEL_GAP);   // first row with room
+    if (row === -1) row = LANDING_ROWS - 1;                        // no room anywhere: use the last row
+    svgText(x, ROW_LANDING + row * ROW_STEP, v, "nl-landing", layers.labels);
+    lastX[row] = x;
+    landingSpots.push({ value: v, x: x, row: row });   // remembered for the division names
+  });
+
+  // dividend, divisor, quotient, remainder (division, when switched on).
+  // Drawn AFTER the landing numbers, so "dividend" can find a clear row.
+  if (namesOn()) drawDivisionNames();
+
+  // the hollow "start" circle and the solid "you are here" marker
+  svgEl("circle", { cx: xOf(state.start), cy: LINE_Y, r: 9, class: "nl-start" }, layers.top);
+  drawMarker(xOf(state.position), LINE_Y);
+}
+
+function drawLineAndTicks() {
+  const r = state.range;
+
+  // the long line, a little past 0 and max on both ends
+  svgEl("line", { x1: xOf(0) - 15, y1: LINE_Y, x2: xOf(r.max) + 15, y2: LINE_Y,
+                  class: "nl-line" }, layers.ticks);
+
+  // one tick every "minor" step
+  for (let v = 0; v <= r.max; v += r.minor) {
+    const x = xOf(v);
+    const hasLabel = (v % r.label === 0);      // "%" is the remainder: 0 means "divides exactly"
+    const isRound = (v % r.round === 0);
+    const half = hasLabel ? 14 : 7;            // labelled ticks are longer
+
+    svgEl("line", { x1: x, y1: LINE_Y - half, x2: x, y2: LINE_Y + half,
+                    class: isRound ? "nl-tick nl-tick-round" : "nl-tick" }, layers.ticks);
+    if (hasLabel) {
+      svgText(x, ROW_TICKS, v.toLocaleString("en-IN"), "nl-tick-label", layers.ticks);
+    }
+  }
+}
+
+// Target and leftover markings
+function drawNotes() {
+  if (state.leftover) {
+    const a = xOf(state.leftover.from);
+    const b = xOf(state.leftover.to);
+    // an orange band along the line over the gap that is left over
+    svgEl("rect", { x: a, y: LINE_Y - 7, width: b - a, height: 14, rx: 4,
+                    class: "nl-leftover" }, layers.notes);
+    // The marker sits on top of the band, so a small leftover (0 to 2)
+    // would be hidden. A bracket under the numbers shows it clearly:
+    //   |_______|   with "2 left over" written underneath.
+    const yB = ROW_NOTES - 6;
+    svgEl("path", { d: `M ${a} ${yB - 10} V ${yB} H ${b} V ${yB - 10}`,
+                    class: "leftover-bracket" }, layers.notes);
+    const gap = state.leftover.to - state.leftover.from;
+    // keep the words from running off the left edge of the drawing
+    const labelX = Math.max((a + b) / 2, 80);
+    svgText(labelX, yB + 28, namesOn() ? `remainder ${gap}` : `${gap} left over`,
+            "nl-note", layers.labels);
+  }
+  if (state.target !== null) {
+    const x = xOf(state.target);
+    // a tall orange tick at the target (stopping above the tick numbers,
+    // so it doesn't strike through them), and the word "target" under it
+    svgEl("line", { x1: x, y1: LINE_Y - 30, x2: x, y2: LINE_Y + 12, class: "nl-target" }, layers.notes);
+    svgText(x, ROW_NOTES, "target " + state.target, "nl-note", layers.labels);
+  }
+}
+
+// A jump that has finished: arc + arrowhead + "+7" or "−7" label
+function drawFinishedJump(jump, index) {
+  const forward = jump.to >= jump.from;
+  const kind = forward ? "forward" : "back";
+  const shape = arcShape(jump.from, jump.to, index);
+
+  svgEl("path", { d: shape.d, class: "nl-jump " + kind,
+                  "marker-end": `url(#arrow-${kind})` }, layers.arcs);
+
+  const size = Math.abs(jump.to - jump.from);
+  const y = freeLabelY(shape.labelX, shape.labelY);
+  svgText(shape.labelX, y, (forward ? "+" : MINUS) + size, "nl-jump-label " + kind, layers.labels);
+  jumpLabelSpots[index] = { x: shape.labelX, y: y };   // the division names sit above these
+}
+
+// Where each jump's "−7" label was written in this drawing, as { x, y }
+let jumpLabelSpots = [];
+
+// Where each landing number was written in this drawing, as { value, x, row }
+let landingSpots = [];
+
+// Jump labels placed so far in this drawing, as { x, y }
+let placedLabels = [];
+
+// Start at the top of the arc and move up until the label no longer
+// overlaps one that is already there. Then remember where it went.
+function freeLabelY(x, y) {
+  const overlaps = yTry => placedLabels.some(p =>
+    Math.abs(p.x - x) < LABEL_W && Math.abs(p.y - yTry) < LABEL_H);
+  while (overlaps(y) && y > LABEL_H) {
+    y -= LABEL_H;
+  }
+  placedLabels.push({ x: x, y: y });
+  return y;
+}
+
+// The whole jump (Planned sum only), as one tall pale arc from the start
+// to the end of the trip. It is taller than any piece, so the pieces sit
+// underneath it: two paths between the same two numbers.
+function drawWholeJump() {
+  const p = state.plan;
+  if (!state.showWhole || !p || p.kind === "count" || p.amount === 0) return;
+
+  const forward = p.end >= p.start;
+  const kind = forward ? "forward" : "back";
+  const x1 = xOf(p.start), x2 = xOf(p.end);
+  const h = 185;                       // taller than the tallest piece (176)
+  const mid = (x1 + x2) / 2;
+  // the arrowhead shows which way the whole jump goes (the pale look of
+  // the arc applies to its arrowhead too)
+  svgEl("path", { d: `M ${x1} ${LINE_Y} Q ${mid} ${LINE_Y - 2 * h} ${x2} ${LINE_Y}`,
+                  class: "whole-jump " + kind, "marker-end": `url(#arrow-${kind})` }, layers.notes);
+  const labelY = LINE_Y - h - 10;
+  svgText(mid, labelY, (forward ? "+" : MINUS) + p.amount, "whole-label " + kind, layers.labels);
+  placedLabels.push({ x: mid, y: labelY });   // so piece labels keep clear of it
+}
+
+// Are the division names showing right now? Only once a division has
+// FINISHED: during the jumps state.division is still empty, so kids first
+// watch the jumps with no new words, then the names appear on the picture
+// they have just seen (do first, name later).
+function namesOn() {
+  return state.division !== null && state.mode === "equal";
+}
+
+// Write the names of the parts of a division on the drawing:
+//   "Dividend = 30" under the start number,
+//   a number 1, 2, 3 ... over each jump (counting them gives the quotient),
+//   "Divisor = 7 (the jump size)" in the top-left corner. It is kept away
+//   from the arcs on purpose: written over a jump, kids could read it as
+//   belonging to the "1" or the "−7".
+// "remainder" is written by drawNotes, on the orange bracket.
+function drawDivisionNames() {
+  const d = state.division;
+
+  // "dividend" goes under the start number, in the first row below it
+  // that has no other number close by (so it never sits on top of one)
+  const sx = xOf(d.start);
+  const startSpot = landingSpots.find(s => s.value === d.start);
+  let row = (startSpot ? startSpot.row : 0) + 1;
+  while (landingSpots.some(s => s.row === row && Math.abs(s.x - sx) < 70)) {
+    row++;
+  }
+  svgText(sx, ROW_LANDING + row * ROW_STEP, `Dividend = ${d.start}`, "name-tag", layers.labels);
+
+  // number the jumps, unless there are so many that the numbers would crowd
+  if (d.count <= 15) {
+    jumpLabelSpots.forEach((spot, i) => {
+      svgText(spot.x, spot.y - 28, i + 1, "name-num", layers.labels);
+    });
+  }
+  svgText(24, 40, `Divisor = ${d.size}  (the jump size)`, "name-tag name-corner", layers.labels);
+
+  // when it comes out exact, say so at 0
+  if (d.left === 0) {
+    svgText(Math.max(xOf(0), 80), ROW_NOTES + 22, "remainder 0", "nl-note", layers.labels);
+  }
+}
+
+// The solid "you are here" circle. We keep a reference to it so the
+// animation can move it along the arc.
+let markerEl = null;
+function drawMarker(x, y) {
+  markerEl = svgEl("circle", { cx: x, cy: y, r: 12, class: "nl-marker" }, layers.top);
+}
+
+
+/* =====================================================================
+   5. ANIMATION — one jump, moving smoothly along its arc
+   =====================================================================
+   How it works:
+   • Draw the arc, then hide it with a trick: a dashed line whose dash
+     is as long as the whole arc, shifted so only the gap shows.
+   • Each frame, shift the dash a little less, so the arc "grows".
+   • At the same time, move the marker to the matching point on the arc.
+   requestAnimationFrame asks the browser to call us before the next
+   screen refresh (about 60 times a second), which keeps it smooth.
+
+   The function returns a Promise: a promise to tell us when the jump
+   is finished. "await animateJump(...)" waits for that moment, which
+   lets us run several jumps one after another.                        */
+
+function animateJump(from, to, index, duration) {
+  return new Promise(resolve => {
+    const kind = to >= from ? "forward" : "back";
+    const shape = arcShape(from, to, index);
+    const path = svgEl("path", { d: shape.d, class: "nl-jump " + kind }, layers.arcs);
+
+    const length = path.getTotalLength();       // length of the arc in drawing units
+    path.style.strokeDasharray = length;        // one dash as long as the arc...
+    path.style.strokeDashoffset = length;       // ...shifted fully out of sight
+
+    const startTime = performance.now();
+
+    function frame(now) {
+      // t goes from 0 (start) to 1 (end) as time passes
+      const t = Math.min(1, (now - startTime) / duration);
+      // "easing": start slow, speed up, slow down again — feels like a hop
+      const e = 0.5 - 0.5 * Math.cos(Math.PI * t);
+
+      path.style.strokeDashoffset = length * (1 - e);   // reveal part of the arc
+      const p = path.getPointAtLength(length * e);      // matching point on the arc
+      markerEl.setAttribute("cx", p.x);
+      markerEl.setAttribute("cy", p.y);
+
+      if (t < 1) {
+        requestAnimationFrame(frame);           // not finished: next frame please
+      } else {
+        resolve();                              // finished: keep the promise
+      }
+    }
+    requestAnimationFrame(frame);
+  });
+}
+
+// Longer jumps take a little longer, but every jump stays between
+// 0.5 and 1.2 seconds so the class never waits too long.
+function durationFor(from, to) {
+  const width = Math.abs(xOf(to) - xOf(from));
+  return Math.min(1200, Math.max(500, width * 2));
+}
+
+// Read a whole number from an input box. Returns null if it isn't one.
+function readWhole(inputId) {
+  const value = Number(document.getElementById(inputId).value);
+  if (!Number.isInteger(value) || value < 0) return null;
+  return value;
+}
+
+// Write a number with Indian commas: 1000 → "1,000"
+function fmt(n) {
+  return n.toLocaleString("en-IN");
+}
+
+
+/* =====================================================================
+   6. PLANNED SUM AND COUNT UP (the two Add & Subtract styles)
+   =====================================================================
+   Both styles are a TRIP from a start number to an end number:
+     Planned sum, add:       38 + 25  → trip from 38 to 63
+     Planned sum, take away: 63 − 25  → trip from 63 to 38
+     Count up:               38 to 63 → trip from 38 to 63
+   The tool always knows how much of the trip is left ("remaining").
+   Kids choose how to cut the trip into pieces, forward or back; the
+   tool draws each piece and keeps count of what is left. Going PAST the
+   end and coming back is allowed, because that is a real strategy:
+     38 + 29  as  +30 then −1      63 − 29  as  −30 then +1
+   The trip is done when you land exactly on the end, however you got there.
+   The only difference between the styles is what the readout says.   */
+
+// How far is still left to go on the trip
+function remaining() {
+  return Math.abs(state.plan.end - state.position);
+}
+
+// When a set-up can't be done (bad numbers), clear the drawing and explain why
+function failSetup(words) {
+  showKeyIdea(null);
+  state.plan = null;
+  state.start = state.position = 0;
+  state.jumps = [];
+  state.target = null;
+  drawAll();
+  showReadout("", "");
+  refreshPathButtons();
+  warn(words);
+}
+
+// "Set up" in Planned sum
+function setUpPlanned() {
+  const start = readWhole("planStartInput");
+  const amount = readWhole("planAmountInput");
+  const kind = state.exercise === "take" ? "take" : "add";   // from the sidebar choice
+  const max = state.range.max;
+
+  if (start === null || amount === null) {
+    failSetup("Use whole numbers (0, 1, 2, ...).");
+    return;
+  }
+  const end = kind === "add" ? start + amount : start - amount;
+  if (start > max) {
+    failSetup(`${fmt(start)} is not on this line. Choose a number from 0 to ${fmt(max)}, or a bigger line.`);
+    return;
+  }
+  if (end > max) {
+    failSetup(`${start} + ${amount} goes past ${fmt(max)}. Try a bigger number line.`);
+    return;
+  }
+  if (end < 0) {
+    failSetup(`${start} ${MINUS} ${amount} would go past 0. Take away a smaller number.`);
+    return;
+  }
+  startTrip({ kind: kind, start: start, end: end, amount: amount });
+  if (amount === 0) {
+    say("Nothing to jump: adding or taking away 0 leaves you where you are.");
+  } else {
+    say("Break it into smaller jumps you like: forward, back, or both. Type the next jump, then press a Jump button (or Enter).");
+  }
+}
+
+// "Set up" in Count up
+function setUpCount() {
+  const from = readWhole("countFromInput");
+  const to = readWhole("countToInput");
+  const max = state.range.max;
+
+  if (from === null || to === null) {
+    failSetup("Use whole numbers (0, 1, 2, ...).");
+    return;
+  }
+  if (from > max || to > max) {
+    failSetup(`Both numbers must be on this line (0 to ${fmt(max)}). Try a bigger number line.`);
+    return;
+  }
+  if (to < from) {
+    failSetup("To count UP, the second number must be bigger. Put the smaller number first.");
+    return;
+  }
+  startTrip({ kind: "count", start: from, end: to });
+  // The target is marked in orange, so kids can see where they are heading
+  state.target = to;
+  drawAll();
+  say(`How far is it from ${from} to ${to}? Count up in easy jumps.`);
+}
+
+// Begin a new trip with nothing jumped yet
+function startTrip(plan) {
+  document.getElementById("pathJumpInput").value = "";
+  showKeyIdea(plan.kind);              // "add", "take" or "count"
+  state.plan = plan;
+  state.start = plan.start;
+  state.position = plan.start;
+  state.jumps = [];
+  state.target = null;
+  state.leftover = null;
+  drawAll();
+  updateReadout();
+  refreshPathButtons();
+}
+
+// How far it is from where you are to the end of the trip, WITH a
+// direction: positive means the end is ahead (forward), negative means
+// it is behind (back).  38 + 29 after +30: at 68, end 67 → −1 (1 back).
+function toGo() {
+  return state.plan.end - state.position;
+}
+
+// Make a trip jump, or several in a row. "sizes" is a list, e.g. [20],
+// and dir is +1 (forward) or -1 (back).
+async function tripJumps(sizes, dir) {
+  setBusy(true);
+  say("");
+  for (const size of sizes) {
+    const from = state.position;
+    const to = from + dir * size;
+    await animateJump(from, to, state.jumps.length, durationFor(from, to));
+    state.jumps.push({ from: from, to: to });
+    state.position = to;
+    drawAll();
+    updateReadout();
+  }
+  setBusy(false);
+
+  // empty the box for the next piece, with the cursor ready in it
+  const box = document.getElementById("pathJumpInput");
+  box.value = "";
+  if (remaining() > 0) box.focus();
+
+  if (remaining() === 0) tripFinished();
+}
+
+// "Next jump" box: any size the kids choose, in either direction
+// (dir is +1 for forward, -1 for back). How to break the jump is up to them:
+//   138 + 125 could be 2, 100, 23   or   2, 120, 3   or   130, then back 5 ...
+function tripJumpFromInput(dir) {
+  const box = document.getElementById("pathJumpInput");
+  if (box.value.trim() === "") {
+    warn("Type the size of the next jump first.");
+    box.focus();
+    return;
+  }
+  const size = readWhole("pathJumpInput");
+  if (size === null) {
+    warn("The jump size must be a whole number (0, 1, 2, ...).");
+    return;
+  }
+  if (size === 0) {
+    say("A jump of 0 doesn't move you at all.");
+    return;
+  }
+  // the only limits are the two ends of the number line
+  const to = state.position + dir * size;
+  if (to < 0) {
+    warn("That would go past 0. On this line there is nothing to the left of 0 (yet!).");
+    return;
+  }
+  if (to > state.range.max) {
+    warn(`That would go past ${fmt(state.range.max)}. Try a bigger number line.`);
+    return;
+  }
+  tripJumps([size], dir);
+}
+
+// Enter in the box jumps TOWARDS the end of the trip: forward if the end
+// is ahead, back if you have gone past it. (Use the buttons to choose.)
+function tripJumpWithEnter() {
+  if (!state.plan || state.busy || toGo() === 0) return;
+  tripJumpFromInput(toGo() > 0 ? +1 : -1);
+}
+
+function tripUndo() {
+  if (!state.plan || state.jumps.length === 0) return;
+  const last = state.jumps.pop();
+  state.position = last.from;
+  drawAll();
+  updateReadout();
+  refreshPathButtons();
+  say("");
+}
+
+// What to say when the trip is complete
+function tripFinished() {
+  const p = state.plan;
+  const sum = Math.abs(p.end - p.start);
+  if (p.kind === "count") {
+    say(`Check it the other way: ${p.start} + ${sum} = ${p.end}.`);
+  } else if (state.showWhole) {
+    say(`Your jumps land exactly where the whole jump of ${p.amount} lands.`);
+  } else {
+    say(`Done! Press "Show the whole jump": one jump of ${p.amount} lands in the same place.`);
+  }
+}
+
+// "Show the whole jump" / "Hide the whole jump"
+function toggleWholeJump() {
+  state.showWhole = !state.showWhole;
+  updateWholeButton();
+  drawAll();
+  if (state.plan && remaining() === 0) tripFinished();
+}
+
+function updateWholeButton() {
+  document.getElementById("wholeJumpBtn").textContent =
+    state.showWhole ? "Hide the whole jump" : "Show the whole jump";
+}
+
+// Switch the jump buttons off when there is no trip, or the trip is
+// already finished; switch Undo off when there is nothing to undo.
+function refreshPathButtons() {
+  const forwardBtn = document.getElementById("pathForwardBtn");
+  const backBtn = document.getElementById("pathBackBtn");
+  const undoBtn = document.getElementById("pathUndoBtn");
+
+  const noTrip = !state.plan;
+  const finished = !noTrip && toGo() === 0;
+  forwardBtn.disabled = noTrip || finished;
+  backBtn.disabled = noTrip || finished;
+  undoBtn.disabled = noTrip || state.jumps.length === 0;
+}
+
+// Trip readout. Examples:
+//   Planned sum, halfway:   main "38 + 2 + 20 = 60"
+//                           sub  "Planned: 38 + 25.  Still to go: 3 forward"
+//   Planned sum, gone past: main "38 + 30 = 68"
+//                           sub  "Planned: 38 + 29.  You're 1 past 67: 1 back to go"
+//   Planned sum, done:      sub  "Same as 38 + 29 = 67"
+//   Count up, done:         main "38 + 32 − 7 = 63"
+//                           sub  "The jumps add up to 32 − 7 = 25, so 63 − 38 = 25"
+function readoutTrip() {
+  const p = state.plan;
+  if (!p) return { main: "", sub: "" };
+
+  // each piece as a signed change: +2, +20, −1 ...
+  const changes = state.jumps.map(j => j.to - j.from);
+  const signed = c => (c >= 0 ? ` + ${c}` : ` ${MINUS} ${-c}`);
+
+  let main = `Start at ${p.start}`;
+  if (changes.length > 0) {
+    main = p.start + changes.map(signed).join("") + ` = ${state.position}`;
+  }
+
+  const left = toGo();                              // + ahead, − behind
+  const leftWords = left > 0 ? `${left} forward` : `${-left} back`;
+  // "gone past" = the end is now behind us, compared with the way the trip goes
+  const tripWay = Math.sign(p.end - p.start);       // +1, −1, or 0
+  const gonePast = left !== 0 && Math.sign(left) !== tripWay;
+  const pastWords = `You're ${Math.abs(left)} past ${p.end}: ${leftWords} to go`;
+
+  let sub;
+  if (p.kind === "count") {
+    const net = state.position - p.start;           // how far we have moved overall
+    if (left !== 0) {
+      sub = gonePast ? pastWords
+                     : `Counting up to ${p.end}.  Moved ${net} so far.`;
+    } else {
+      // with any back pieces, show the pieces adding up: "32 − 7 = 25"
+      const anyBack = changes.some(c => c < 0);
+      const pieces = changes.map((c, i) => i === 0 ? String(c) : signed(c)).join("");
+      sub = (anyBack ? `The jumps add up to ${pieces} = ${net}` : `The jumps add up to ${net}`) +
+            `, so ${p.end} ${MINUS} ${p.start} = ${net}`;
+    }
+  } else {
+    const planned = `${p.start}${p.kind === "take" ? " " + MINUS + " " : " + "}${p.amount}`;
+    if (left !== 0)              sub = `Planned: ${planned}.  ` + (gonePast ? pastWords : `Still to go: ${leftWords}`);
+    else if (changes.length > 1) sub = `Same as ${planned} = ${p.end}`;
+    else                         sub = `${planned} = ${p.end}`;
+  }
+  return { main: main, sub: sub };
+}
+
+
+/* =====================================================================
+   7. EQUAL JUMPS (Mode 2)
+   ===================================================================== */
+
+// Start fresh from 0 with nothing drawn
+function resetEqual() {
+  state.division = null;
+  state.start = 0;
+  state.position = 0;
+  state.jumps = [];
+  state.plan = null;
+  state.target = null;
+  state.leftover = null;
+}
+
+// (The key idea in the sidebar stays: it belongs to the exercise, not to
+// what is drawn.)
+function clearEqual() {
+  resetEqual();
+  drawAll();
+  showReadout("", "");
+  say("");
+}
+
+// MULTIPLICATION: a number of equal jumps from 0
+async function makeJumps() {
+  const size = readWhole("eqSizeInput");
+  const count = readWhole("eqCountInput");
+  if (size === null || count === null) {
+    warn("Jump size and number of jumps must be whole numbers.");
+    return;
+  }
+  if (size * count > state.range.max) {
+    warn(`${count} jumps of ${size} go past ${fmt(state.range.max)}. Try a bigger number line.`);
+    return;
+  }
+  showKeyIdea("multiply");
+
+  resetEqual();
+  drawAll();
+  say("");
+
+  // Zero cases: no jumps, or jumps of 0, take you nowhere
+  if (size === 0 || count === 0) {
+    showReadout(`${count} jumps of ${size}: ${count} × ${size} = 0`,
+                size === 0 ? "Jumps of 0 never move you, however many you make."
+                           : "No jumps at all: you stay at 0.");
+    return;
+  }
+
+  setBusy(true);
+  // many jumps → each one faster, so 20 jumps don't take forever
+  const each = Math.max(250, Math.min(900, 4000 / count));
+  for (let i = 0; i < count; i++) {
+    const from = state.position;
+    const to = from + size;
+    await animateJump(from, to, i, each);   // wait for this jump to finish
+    state.jumps.push({ from: from, to: to });
+    state.position = to;
+    drawAll();
+    showReadout(`Jumps made: ${i + 1}`, `Now at ${to}`);
+  }
+  setBusy(false);
+
+  showReadout(repeatedSum(size, count) + ` = ${size * count}`,
+              `${count} jumps of ${size}:  ${count} × ${size} = ${size * count}`);
+}
+
+// "7 + 7 + 7 + 7", shortened when there are many jumps:
+// "7 + 7 + … + 7  (12 times)"
+function repeatedSum(size, count) {
+  if (count <= 8) {
+    return Array(count).fill(size).join(" + ");
+  }
+  return `${size} + ${size} + … + ${size}  (${count} times)`;
+}
+
+// DIVISION AS REPEATED SUBTRACTION: start at the number and keep
+// jumping BACK by the jump size, as long as a full jump still fits.
+// The number of jumps is the answer. Whatever is left between 0 and the
+// marker, too small for another full jump, is the remainder.
+//   28 ÷ 7:  28 → 21 → 14 → 7 → 0      4 jumps, nothing left
+//   30 ÷ 7:  30 → 23 → 16 → 9 → 2      4 jumps, 2 left (no room for another 7)
+async function howManyJumps() {
+  const size = readWhole("divSizeInput");     // Divide's own "Jump size" box
+  const start = readWhole("eqStartInput");
+  if (size === null || start === null) {
+    warn("The jump size and the start must be whole numbers.");
+    return;
+  }
+  if (start > state.range.max) {
+    warn(`${fmt(start)} is past ${fmt(state.range.max)}. Try a bigger number line.`);
+    return;
+  }
+
+  resetEqual();
+  state.start = start;
+  state.position = start;
+  drawAll();
+  say("");
+  showKeyIdea("divide");
+
+  // Dividing by 0: taking away 0 never gets you any closer to 0
+  if (size === 0) {
+    showReadout(`${start} ÷ 0 = ?`,
+                "Taking away 0 never gets you any closer to 0, however many times you do it.");
+    say("That is why dividing by 0 has no answer.");
+    return;
+  }
+  if (start === 0) {
+    showReadout(`0 ÷ ${size} = 0`, "You are already at 0: there is nothing to take away.");
+    return;
+  }
+
+  // Jump back while a full jump still fits (doesn't go below 0).
+  // Many jumps → each one faster, so 100 ÷ 3 doesn't take half a minute.
+  // (Math.floor(start / size) is how many jumps there will be.)
+  setBusy(true);
+  const each = Math.max(200, Math.min(700, 4000 / Math.floor(start / size)));
+  let count = 0;
+  while (state.position - size >= 0) {
+    const from = state.position;
+    const to = from - size;
+    await animateJump(from, to, count, each);
+    state.jumps.push({ from: from, to: to });
+    state.position = to;
+    count++;
+    drawAll();
+    showReadout(`Jumps so far: ${count}`, `Now at ${to}`);
+  }
+  setBusy(false);
+
+  const left = state.position;     // what is left when no full jump fits
+
+  // remember the result; shade what is left (if anything) from 0 to the marker
+  state.division = { start: start, size: size, count: count, left: left };
+  if (left > 0) state.leftover = { from: 0, to: left };
+  drawAll();
+  showDivisionResult();
+}
+
+// The readout and hint for the last division, with the names:
+//   main:  30 − 7 − 7 − 7 − 7 = 2
+//   sub:   Dividend 30, divisor 7  →  quotient 4, remainder 2
+//   hint:  what dividend and divisor are, and the general rule
+function showDivisionResult() {
+  const d = state.division;
+  if (!d) return;
+  const { start, size, count, left } = d;     // take the four numbers out of d
+
+  const main = count === 0
+    ? `Not even one jump of ${size} fits into ${start}`
+    : repeatedTakeAway(start, size, count) + ` = ${left}`;
+
+  showReadout(main, "");
+  writeWithTerms(readoutSub,
+    `Dividend ${start},  divisor ${size}   →   quotient ${count},  remainder ${left}`);
+
+  messageEl.classList.remove("warn");
+  writeWithTerms(messageEl,
+    `Dividend is the start point (${start}). Divisor is the jump size (${size}).\n` +
+    `Dividend = Divisor × Quotient + Remainder   →   ${start} = ${size} × ${count} + ${left}\n` +
+    "The remainder is always smaller than the divisor: otherwise another jump would fit.");
+}
+
+// The key idea for each activity. Kept together here so the wording is
+// easy to find and change.
+const KEY_IDEAS = {
+  add:      "Addition is repeated increment by 1.",
+  take:     "Subtraction is repeated decrement by 1 (taking away 1, again and again).",
+  count:    "Subtraction by counting up: the jumps from the smaller number to the bigger one add up to the difference.",
+  multiply: "Multiplication is repeated addition of equal jumps.",
+  divide:   "Division is repeated subtraction of the divisor from the dividend."
+};
+
+// Show the key idea for one activity ("add", "take", ...), or hide the
+// line with showKeyIdea(null). writeWithTerms makes the division words bold.
+function showKeyIdea(which) {
+  const el = document.getElementById("keyIdea");
+  if (!which) {
+    el.classList.add("hidden");
+    return;
+  }
+  writeWithTerms(el, KEY_IDEAS[which]);
+  el.classList.remove("hidden");
+}
+
+// Write some words into a page element, making the four division words
+// (dividend, divisor, quotient, remainder) bold wherever they appear.
+//
+// How it works: split() with a pattern in brackets keeps the matched words
+// in the list. "Dividend is 30" becomes ["", "Dividend", " is 30"], so
+// every SECOND item (index 1, 3, 5 ...) is one of the four words.
+// Each piece is added as its own little element: plain words as text,
+// the four words inside <strong class="term"> so the style can bold them.
+function writeWithTerms(element, words) {
+  element.textContent = "";                    // clear what was there
+  const pieces = words.split(/(dividend|divisor|quotient|remainder)/i);   // "i" = any capitals
+  pieces.forEach((piece, i) => {
+    if (i % 2 === 1) {
+      const strong = document.createElement("strong");
+      strong.className = "term";
+      strong.textContent = piece;
+      element.appendChild(strong);
+    } else {
+      element.appendChild(document.createTextNode(piece));
+    }
+  });
+}
+
+// "28 − 7 − 7 − 7 − 7", shortened when there are many jumps:
+// "90 − 7 − … − 7  (12 times)"
+function repeatedTakeAway(start, size, count) {
+  if (count <= 8) {
+    return start + Array(count).fill(` ${MINUS} ${size}`).join("");
+  }
+  return `${start} ${MINUS} ${size} ${MINUS} … ${MINUS} ${size}  (${count} times)`;
+}
+
+
+/* =====================================================================
+   8. READOUT AND MESSAGES
+   ===================================================================== */
+const readoutMain = document.getElementById("readoutMain");
+const readoutSub  = document.getElementById("readoutSub");
+const messageEl   = document.getElementById("message");
+
+function showReadout(main, sub) {
+  readoutMain.textContent = main;
+  readoutSub.textContent = sub;
+}
+
+// Refresh the readout for Add & Subtract (Equal Jumps sets its readout directly)
+function updateReadout() {
+  if (state.mode !== "addsub") return;
+  const r = readoutTrip();
+  showReadout(r.main, r.sub);
+}
+
+// A normal hint
+function say(words) {
+  messageEl.textContent = words;
+  messageEl.classList.remove("warn");
+}
+
+// A warning, shown in red
+function warn(words) {
+  messageEl.textContent = words;
+  messageEl.classList.add("warn");
+}
+
+// While a jump animates, switch off every button, box and tab so a
+// second click can't start another jump halfway through the first.
+// Afterwards, switch everything back on, then switch off the trip
+// buttons that don't make sense right now.
+function setBusy(isBusy) {
+  state.busy = isBusy;
+  document.querySelectorAll("button, input, select").forEach(el => {
+    el.disabled = isBusy;
+  });
+  if (!isBusy) refreshPathButtons();
+}
+
+
+/* =====================================================================
+   9. WIRING AND START-UP
+   ===================================================================== */
+
+// A shortcut: run "fn" when the element with this id is clicked
+function onClick(id, fn) {
+  document.getElementById(id).addEventListener("click", fn);
+}
+
+// Planned sum and Count up buttons
+onClick("planSetupBtn",     setUpPlanned);
+onClick("wholeJumpBtn",     toggleWholeJump);
+onClick("countSetupBtn",    setUpCount);
+onClick("pathForwardBtn",   () => tripJumpFromInput(+1));
+onClick("pathBackBtn",      () => tripJumpFromInput(-1));
+
+// Pressing Enter in the "Next piece" box jumps towards the end, so the
+// teacher can type 2 ⏎ 100 ⏎ 23 ⏎ without reaching for the mouse.
+document.getElementById("pathJumpInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") tripJumpWithEnter();
+});
+onClick("pathUndoBtn",      tripUndo);
+
+// Equal Jumps buttons
+onClick("makeJumpsBtn",  makeJumps);
+onClick("howManyBtn",    howManyJumps);
+onClick("clearMulBtn",   clearEqual);
+onClick("clearDivBtn",   clearEqual);
+
+// Pressing Enter in a set-up box does the same as that row's main button,
+// so the teacher can type 63 ⏎ and go, without reaching for the mouse.
+// "ids" is a list of input boxes; "fn" is the function to run.
+function onEnter(ids, fn) {
+  ids.forEach(id => {
+    document.getElementById(id).addEventListener("keydown", e => {
+      if (e.key === "Enter" && !state.busy) fn();
+    });
+  });
+}
+onEnter(["planStartInput", "planAmountInput"], setUpPlanned);
+onEnter(["countFromInput", "countToInput"],    setUpCount);
+onEnter(["eqSizeInput", "eqCountInput"],       makeJumps);
+onEnter(["eqStartInput", "divSizeInput"],      howManyJumps);
+
+// Multiply and Divide each have their own "Jump size" box, but the two
+// always hold the same number: type in one and the other follows. So after
+// 4 × 7 the class can go straight to 28 ÷ 7 without typing 7 again.
+// ("input" fires on every keystroke in the box.)
+function keepInStep(idA, idB) {
+  const a = document.getElementById(idA);
+  const b = document.getElementById(idB);
+  a.addEventListener("input", () => { b.value = a.value; });
+  b.addEventListener("input", () => { a.value = b.value; });
+}
+keepInStep("eqSizeInput", "divSizeInput");
+
+// After switching to a smaller number line, the boxes may hold numbers
+// that don't fit (say 298 on the 0–20 line). Put in a friendly example
+// that does fit: 8 + 5 on the 0–20 line, 38 + 25 on the bigger ones.
+function fitBoxesToLine() {
+  const max = state.range.max;
+  const val = id => Number(document.getElementById(id).value);
+  const set = (id, v) => { document.getElementById(id).value = v; };
+  const small = max === 20;
+
+  // Planned sum: the start and the end of the trip must both fit
+  const take = state.exercise === "take";
+  const start = val("planStartInput");
+  const end = take ? start - val("planAmountInput") : start + val("planAmountInput");
+  if (start > max || end > max || end < 0) {
+    set("planStartInput", take ? (small ? 13 : 63) : (small ? 8 : 38));
+    set("planAmountInput", small ? 5 : 25);
+  }
+
+  // Count up
+  if (val("countFromInput") > max || val("countToInput") > max) {
+    set("countFromInput", small ? 8 : 38);
+    set("countToInput", small ? 13 : 63);
+  }
+}
+
+// The five exercises in the sidebar. For each one:
+//   mode   which family it belongs to ("addsub" or "equal")
+//   style  for the Add & Subtract family: "plan" or "count"
+//   rows   which control rows to show (the ids of the rows in the HTML)
+const EXERCISES = {
+  add:      { mode: "addsub", style: "plan",  rows: ["planSetupRow", "pathRows"] },
+  take:     { mode: "addsub", style: "plan",  rows: ["planSetupRow", "pathRows"] },
+  count:    { mode: "addsub", style: "count", rows: ["countSetupRow", "pathRows"] },
+  multiply: { mode: "equal",  style: null,    rows: ["multiplyRow"] },
+  divide:   { mode: "equal",  style: null,    rows: ["divideRow"] }
+};
+// every control row, so we can hide the ones an exercise doesn't use
+const ALL_ROWS = ["planSetupRow", "countSetupRow", "pathRows", "multiplyRow", "divideRow"];
+
+// Switch to one exercise and start it afresh
+function showExercise(name) {
+  const ex = EXERCISES[name];
+  state.exercise = name;
+  state.mode = ex.mode;
+  if (ex.style) state.style = ex.style;
+
+  // light up the chosen button in the sidebar, dim the others.
+  // classList.toggle("active", yes/no) adds the class when yes, removes it when no.
+  document.querySelectorAll(".ex-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.exercise === name);
+  });
+
+  // show only this exercise's rows
+  ALL_ROWS.forEach(id => {
+    document.getElementById(id).classList.toggle("hidden", !ex.rows.includes(id));
+  });
+
+  // the sign between the two boxes: green + for Add, red − for Take away
+  const sign = document.getElementById("planOpSign");
+  sign.textContent = name === "take" ? MINUS : "+";
+  sign.className = "op-sign " + (name === "take" ? "back" : "forward");
+
+  // forget anything left over from the previous exercise
+  state.plan = null;
+  state.target = state.leftover = null;
+
+  if (ex.mode === "addsub") {
+    fitBoxesToLine();
+    if (ex.style === "plan") setUpPlanned();
+    else setUpCount();
+    refreshPathButtons();
+  } else {
+    clearEqual();
+    showKeyIdea(name === "multiply" ? "multiply" : "divide");
+    say(name === "multiply"
+      ? "Choose the jump size and how many jumps, then press Make the jumps."
+      : "Choose where to start and the jump size, then press How many jumps back to 0?");
+  }
+}
+
+// Clicking an exercise in the sidebar
+document.querySelectorAll(".ex-btn").forEach(btn => {
+  btn.addEventListener("click", () => showExercise(btn.dataset.exercise));
+});
+
+// Changing the number line starts the current exercise afresh
+document.getElementById("rangeSelect").addEventListener("change", e => {
+  state.range = RANGES[e.target.value];
+  showExercise(state.exercise);
+});
+
+// Start-up: build the drawing and begin with "Add"
+setUpDrawing();
+updateWholeButton();
+showExercise("add");
+</script>
+</body>
+</html>
