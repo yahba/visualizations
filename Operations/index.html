@@ -1,0 +1,199 @@
+<!doctype html>
+<!--
+  ======================================================================
+  INDEX (FRONT PAGE) FOR THE OPERATIONS FOLDER
+  Math Explorer Club, The Break and Build Lab (BBL)
+
+  What it is: the menu page for the Operations tools. When the folder
+  is put on a website, this file opens automatically at the folder's
+  address (for example  https://<username>.github.io/bbl-math/operations/ ),
+  because browsers and web hosts look for a file called "index.html" first.
+
+  It only works if the tool files sit in the SAME folder as this file,
+  with exactly these names (names are case-sensitive on a website):
+      two-boxes.html             number-line-jumps.html
+
+  The Number Sense tools have their own folder and their own index.html,
+  in the same look as this one, so the two can be merged into one page
+  later: copy the <h2> and <ol class="tools"> section from one into the other.
+
+  HOW TO ADD A NEW TOOL LATER
+  Copy one <li> ... </li> block in the HTML below, paste it where you
+  want it in the list, and change three things: the file name in
+  href="...", the title, and the one-line description.
+  The numbers 1, 2, 3 ... are added automatically.
+
+  HOW TO ADD A NEW MODULE (a new section, like "Operations")
+  Copy one whole section: the <h2> heading AND the <ol class="tools">
+  list under it, down to its closing </ol>. Change the heading and the
+  cards. Each list numbers its own cards from 1, because the counter
+  starts again at every <ol class="tools"> (see "counter-reset" in the CSS).
+
+  How this file is organised (read it top to bottom):
+    1. <head>    : page settings, title, fonts
+    2. <style>   : CSS, which controls how everything LOOKS
+    3. <body>    : HTML, which says WHAT is on the page
+  There is no <script>: this page doesn't need any JavaScript.
+  ======================================================================
+-->
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <!-- Makes the page fit phone screens properly. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+  <!-- The name shown on the browser tab. -->
+  <title>Math Explorer Club: Operations</title>
+
+  <!-- The same two fonts as the tools, so the menu looks like part of the family.
+       If there is no internet, the page still works with the computer's normal fonts. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Baloo+2:wght@500;700;800&display=swap">
+
+  <style>
+    /* ==================================================================
+       PART 2: CSS (how things look)
+       ================================================================== */
+
+    /* ------------------------------------------------------------------
+       COLOUR AND FONT SETTINGS  <- the easiest place to change the look
+       The same colour names as the Exchange Machine.
+       ------------------------------------------------------------------ */
+    :root {
+      --bg:        #F3F5F9;  /* page background */
+      --surface:   #FFFFFF;  /* the white cards */
+      --ink:       #16202D;  /* main text */
+      --muted:     #566275;  /* softer grey text */
+      --line:      #C6D0DE;  /* card borders */
+      --accent:    #2B4A9E;  /* blue: the numbers, the hover outline */
+      --chip:      #F2A41A;  /* marigold, the counter colour from the Exchange Machine */
+
+      --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+      --body:    "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    /* DARK MODE: the same names with darker values.
+       The first block follows the device setting; the second applies
+       when a dark theme is chosen explicitly. */
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg:#10141B; --surface:#1A2029; --ink:#EEF2F7; --muted:#9EA9BA; --line:#3A4658;
+        --accent:#93ABF2; --chip:#F5B33C;
+        color-scheme: dark;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg:#10141B; --surface:#1A2029; --ink:#EEF2F7; --muted:#9EA9BA; --line:#3A4658;
+      --accent:#93ABF2; --chip:#F5B33C;
+      color-scheme: dark;
+    }
+
+    /* ------------------------------------------------------------------
+       BASIC PAGE SETUP
+       ------------------------------------------------------------------ */
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--body);
+      font-size: 18px;            /* a little bigger than usual: it may be projected */
+      line-height: 1.45;
+    }
+
+    /* The outer wrapper: centred, not too wide, 16px gap at the sides on a phone. */
+    .wrap { max-width: 980px; margin: 0 auto; padding: 28px 16px 48px; }
+
+    /* ------------------------------------------------------------------
+       HEADER
+       ------------------------------------------------------------------ */
+    .club { margin: 0; font: 700 .9rem var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+    h1 { font: 800 clamp(2rem, 4.5vw, 3rem)/1.05 var(--display); margin: 4px 0 8px; }
+    .intro { margin: 0 0 28px; color: var(--muted); max-width: 60ch; }
+
+    /* A module heading, e.g. "Number Sense (Basic)", with a marigold bar on the left. */
+    h2 { font: 800 clamp(1.3rem, 2.4vw, 1.7rem)/1.2 var(--display); margin: 0 0 12px;
+         padding-left: 12px; border-left: 6px solid var(--chip); }
+
+    /* ------------------------------------------------------------------
+       THE LIST OF TOOLS
+       An <ol> is a numbered list. We hide the browser's own numbers
+       (list-style: none) and draw our own, bigger ones with a CSS
+       "counter": counter-reset starts it at 0, and each <li> adds 1.
+       ------------------------------------------------------------------ */
+    .tools { list-style: none; margin: 0 0 32px; padding: 0; counter-reset: tool;
+             display: grid; gap: 12px; }
+    .tools li { counter-increment: tool; }
+
+    /* Each card is a whole link (<a>), so a tap anywhere on it opens the tool.
+       display:grid with two columns: the number on the left, the words on the right. */
+    .tools a {
+      display: grid; grid-template-columns: 3.2rem 1fr; gap: 4px 14px; align-items: start;
+      background: var(--surface); border: 2px solid var(--line); border-radius: 16px;
+      padding: 14px 18px; color: inherit; text-decoration: none;
+      transition: border-color .15s, transform .15s;
+    }
+    /* Hovering with a mouse, or reaching the card with the Tab key, outlines it in blue. */
+    .tools a:hover, .tools a:focus-visible { border-color: var(--accent); transform: translateY(-2px); outline: none; }
+
+    /* The big number. ::before adds content in front of the card's own content;
+       counter(tool) is the number our CSS counter has reached. */
+    .tools a::before {
+      content: counter(tool);
+      grid-row: span 2;                 /* the number sits beside both lines of text */
+      font: 800 2.2rem/1 var(--display); color: var(--accent);
+      text-align: center; padding-top: 4px;
+    }
+    .tools .name { font: 800 clamp(1.25rem, 2.2vw, 1.5rem)/1.2 var(--display); }
+    .tools .what { color: var(--muted); }
+
+    /* ------------------------------------------------------------------
+       FOOTER
+       ------------------------------------------------------------------ */
+    footer { border-top: 1.5px solid var(--line); padding-top: 12px; color: var(--muted); font-size: .9rem; }
+    footer p { margin: 0; }
+  </style>
+</head>
+
+<body>
+  <!-- ====================================================================
+       PART 3: HTML (what is on the page)
+       ==================================================================== -->
+  <div class="wrap">
+
+    <header>
+      <p class="club">The Break and Build Lab</p>
+      <h1>Math Explorer Club</h1>
+      <p class="intro">Interactive tools for understanding the four operations: what adding, taking away, multiplying and dividing mean, and why the methods we use for them work.</p>
+    </header>
+
+    <main>
+      <h2>Operations: Add, Subtract, Multiply, Divide</h2>
+
+      <!-- THE TOOLS, IN TEACHING ORDER: beans first (things you can
+           touch), then the number line (a picture of the same moves). -->
+      <ol class="tools">
+        <li>
+          <a href="two-boxes.html">
+            <span class="name">Beans in Two Boxes</span>
+            <span class="what">Move beans one at a time: one box goes up, the other goes down, and the total stays the same. Then take away, and make two boxes equal to find the difference.</span>
+          </a>
+        </li>
+        <li>
+          <a href="number-line-jumps.html">
+            <span class="name">Jumps on the Number Line</span>
+            <span class="what">Break a jump into smaller jumps you choose, or count up to subtract. Then equal jumps: multiplication, and division as repeated subtraction with a remainder.</span>
+          </a>
+        </li>
+      </ol>
+    </main>
+
+    <footer>
+      <p>© The Break and Build Lab, Dharamshala</p>
+    </footer>
+  </div>
+</body>
+</html>
